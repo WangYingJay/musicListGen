@@ -40,7 +40,7 @@ export function GallerySidebar() {
   return (
     <aside className="gallery-rail editor-sidebar">
       <div className="sidebar-shell">
-        <div className="sidebar-brand">
+        {/*<div className="sidebar-brand">
           <div>
             <p className="eyebrow">Workspace</p>
             <h2>创作记录</h2>
@@ -51,7 +51,7 @@ export function GallerySidebar() {
         <label className="search-box sidebar-search">
           <Search size={14} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或提示词" />
-        </label>
+        </label>*/}
 
         <div className="sidebar-section">
           <div className="sidebar-section-head">

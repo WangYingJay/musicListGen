@@ -357,7 +357,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
   return (
     <section className="playlist-workflow editor-home">
       <div className="playlist-main editor-feed">
-        <header className="workspace-head editor-feed-head">
+        {/*<header className="workspace-head editor-feed-head">
           <div>
             <p className="eyebrow">Workspace</p>
             <h1>歌单封面创作台</h1>
@@ -369,7 +369,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
             <span className="workflow-stat">素材 {allUploadedFiles.length} 张</span>
             <span className="workflow-stat">状态 {renderTaskStatus(displayedTask)}</span>
           </div>
-        </header>
+        </header>*/}
 
         <div className="editor-stage-grid">
           <section

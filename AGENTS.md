@@ -6,33 +6,32 @@ This repository contains planning documentation and the initial MVP scaffold for
 
 - `README.md` is the short project entry point.
 - `有品服务-歌单生成设计文档.md` contains the product, architecture, UI, and technology-stack design.
-- `launcher/` contains the pywebview native-window launcher.
+- `launcher/` contains the Electron main-process launcher and preload bridge.
 - `desktop/` contains the React renderer.
 - `backend/` contains the FastAPI sidecar service.
 - `data/` is reserved for runtime SQLite files, uploads, and generated results.
 
 When implementation begins, keep the planned architecture separated by responsibility:
 
-- `launcher/` for the Python native-window launcher.
-- `frontend/` for React + TypeScript + Vite renderer code.
+- `launcher/` for the Electron desktop shell, preload bridge, and backend sidecar entry.
+- `desktop/` for React + TypeScript + Vite renderer code.
 - `backend/` for the FastAPI sidecar service.
 - `data/` for local runtime artifacts such as SQLite databases and generated results; avoid committing generated files.
 - `assets/` for static UI assets, icons, and bundled images.
 
 ## Build, Test, and Development Commands
 
-No build or test commands are defined in this repository yet. Add commands as soon as source code is introduced, and document them in `README.md`.
+Current commonly used commands:
 
-Recommended future examples:
-
-- `npm install` installs frontend dependencies.
-- `pip install -r requirements.txt` installs backend dependencies.
-- `npm run dev` starts the pywebview desktop launcher, FastAPI backend, and renderer development server.
-- `启动.command` starts the app on macOS.
-- `启动-windows.bat` starts the app on Windows.
-- `npm run build` creates production frontend/desktop artifacts.
+- `npm install` installs root workspace dependencies, including Electron tooling.
+- `pip install -r requirements.txt` installs FastAPI runtime and backend packaging dependencies.
+- `npm run start:app` performs dependency bootstrap and launches the desktop app in one step.
+- `npm run dev` starts the Electron desktop shell, FastAPI backend, and renderer development server.
+- `npm run build` builds the Vite renderer production assets.
+- `npm run package:dir` builds the renderer and backend sidecar, then outputs an unpacked Electron app directory.
+- `npm run dist:mac` builds the macOS installer artifacts on macOS.
+- `npm run dist:win` builds the Windows installer artifacts on Windows.
 - `npm run backend:dev` runs the FastAPI backend during development.
-- `pytest` runs backend tests once a test suite exists.
 
 ## Coding Style & Naming Conventions
 

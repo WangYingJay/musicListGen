@@ -52,6 +52,12 @@ export const useTaskStore = create<TaskState>((set) => ({
         started_at: task.started_at,
         completed_at: task.completed_at
       };
+      const didProgressChange = current.progress !== task.progress;
+      const didErrorChange = current.error !== task.error;
+      const didImageChange = current.imageUrl !== imageTask.imageUrl;
+      const didStartTimeChange = current.started_at !== task.started_at;
+      const didCompleteTimeChange = current.completed_at !== task.completed_at;
+      const didResultChange = current.result !== task.result;
       if (didStatusChange || didMessageChange) {
         appendOperationLog({
           source: "任务",
@@ -61,11 +67,25 @@ export const useTaskStore = create<TaskState>((set) => ({
         });
       }
       const isActive = task.status === "pending" || task.status === "running";
+      const nextActiveTaskIds = isActive
+        ? state.activeTaskIds
+        : state.activeTaskIds.filter((taskId) => taskId !== task.task_id);
+      if (
+        !didStatusChange
+        && !didMessageChange
+        && !didProgressChange
+        && !didErrorChange
+        && !didImageChange
+        && !didStartTimeChange
+        && !didCompleteTimeChange
+        && !didResultChange
+        && nextActiveTaskIds === state.activeTaskIds
+      ) {
+        return state;
+      }
       return {
         tasks: { ...state.tasks, [task.task_id]: imageTask },
-        activeTaskIds: isActive
-          ? state.activeTaskIds
-          : state.activeTaskIds.filter((taskId) => taskId !== task.task_id)
+        activeTaskIds: nextActiveTaskIds
       };
     }),
   stopLocalTask: (taskId) =>

@@ -2,7 +2,7 @@
 
 `有品服务-歌单生成` 是一个桌面端歌单封面生图工作台。当前项目已按轻量桌面架构启动 MVP 骨架：
 
-- `launcher/`：pywebview 原生窗口启动器
+- `launcher/`：Electron 主进程、preload 与后端 sidecar 启动器
 - `desktop/`：React 18 + TypeScript + Vite 渲染层
 - `backend/`：FastAPI sidecar，提供异步任务提交、任务轮询、图片结果读取
 - `data/`：本地 SQLite 与生成结果运行目录，默认不提交生成文件
@@ -25,15 +25,15 @@ Windows 可以直接双击根目录的 `启动-windows.bat`。
 - 安装/更新 Python 后端依赖
 - 安装 Node 前端依赖
 - 从 `.env.example` 初始化 `.env`
-- 启动 FastAPI 后端、Vite 前端，并用 pywebview 打开原生桌面窗口
+- 启动 Electron 桌面壳、FastAPI 后端，以及 Vite 前端开发服务
 
-轻量桌面壳采用 pywebview：
+桌面壳已切换为 Electron：
 
-- macOS 使用系统 WebKit
-- Windows 使用系统 Edge WebView2
-- 不再下载 Electron 二进制
+- 开发态由 Electron 主进程自动拉起 FastAPI 和 Vite
+- 生产态从 `desktop/dist` 加载静态前端，并通过 preload 暴露本地桌面能力
+- 打包前会先把 Python 后端编译成 sidecar 可执行文件，再交给 `electron-builder` 生成 macOS / Windows 安装包
 
-Windows 如果提示缺少 WebView2 Runtime，请安装 Microsoft Edge WebView2 Runtime 后再启动。
+注意：Electron 产物仍建议分别在 macOS 和 Windows 上构建，避免跨平台打包时的二进制差异问题。
 
 手动首次安装依赖：
 
@@ -48,6 +48,19 @@ pip install -r requirements.txt
 
 ```bash
 npm run dev
+```
+
+打包目录预览：
+
+```bash
+npm run package:dir
+```
+
+生成安装包：
+
+```bash
+npm run dist:mac
+npm run dist:win
 ```
 
 单独启动后端：

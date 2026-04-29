@@ -17,7 +17,9 @@ store = TaskStore(settings.task_db_path)
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    # Electron 生产包从 file:// 加载页面时，浏览器侧的 Origin 通常会退化成 null，
+    # 这里要显式放行，否则打包后的渲染进程无法访问本地 FastAPI。
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173", "null"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

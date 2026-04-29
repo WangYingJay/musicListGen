@@ -52,16 +52,14 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "node_modules" (
-  echo 安装前端依赖
-  npm install
-  if errorlevel 1 (
-    echo 启动失败：前端依赖安装失败
-    pause
-    exit /b 1
-  )
+echo 安装/更新前端依赖
+npm install
+if errorlevel 1 (
+  echo 启动失败：前端依赖安装失败
+  pause
+  exit /b 1
 )
 
 echo 启动桌面应用
-".venv\\Scripts\\python.exe" launcher\\app.py
+npm run dev
 pause

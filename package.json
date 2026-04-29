@@ -3,14 +3,63 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "launcher/main.cjs",
   "workspaces": [
     "desktop"
   ],
   "scripts": {
     "start:app": "bash scripts/start.sh",
-    "dev": "python launcher/app.py",
+    "dev": "electron launcher/main.cjs --dev",
     "frontend:dev": "npm run dev --workspace desktop",
-    "build": "npm run build --workspace desktop",
+    "build": "npm run build:renderer",
+    "build:renderer": "npm run build --workspace desktop",
+    "build:backend": "node scripts/build-backend.cjs",
+    "package:dir": "npm run build:renderer && npm run build:backend && electron-builder --dir",
+    "dist": "npm run build:renderer && npm run build:backend && electron-builder",
+    "dist:mac": "npm run build:renderer && npm run build:backend && electron-builder --mac",
+    "dist:win": "npm run build:renderer && npm run build:backend && electron-builder --win",
     "backend:dev": "uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8765"
+  },
+  "devDependencies": {
+    "electron": "^36.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.youpin.musiclistgen",
+    "productName": "有品服务-歌单生成",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "launcher/**/*",
+      "desktop/dist/**/*",
+      "logo.ico",
+      "package.json"
+    ],
+    "asar": true,
+    "extraResources": [
+      {
+        "from": "dist/backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "icon": "assets/logo.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "icon": "logo.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
   }
 }

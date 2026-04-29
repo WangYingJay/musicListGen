@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""
+Legacy pywebview launcher.
+
+当前默认桌面入口已经切换到 Electron（`npm run dev` / `npm run start:app`）。
+这个文件暂时保留，仅用于历史参考，不再参与默认启动链路。
+"""
+
 import atexit
 import os
 import re

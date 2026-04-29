@@ -55,9 +55,11 @@ export const useConfigStore = create<ConfigState>((set) => ({
   connectionMessage: "等待后端状态",
   setBackend: (backend) =>
     set((state) => {
-      const defaultLike = !state.apiBaseUrl || state.apiBaseUrl === DEFAULT_BACKEND_API_BASE_URL;
-      const apiBaseUrl = defaultLike && backend.baseUrl ? normalizeBackendApiBaseUrl(backend.baseUrl, DEFAULT_BACKEND_API_BASE_URL) : state.apiBaseUrl;
-      if (defaultLike && backend.baseUrl) {
+      const shouldSyncLocalBackend = shouldSyncDesktopManagedApiBaseUrl(state.apiBaseUrl);
+      const apiBaseUrl = shouldSyncLocalBackend && backend.baseUrl
+        ? normalizeBackendApiBaseUrl(backend.baseUrl, DEFAULT_BACKEND_API_BASE_URL)
+        : state.apiBaseUrl;
+      if (shouldSyncLocalBackend && backend.baseUrl) {
         persistStoredConfig({ apiBaseUrl });
       }
       return {
@@ -142,4 +144,22 @@ function resolveStoredApiBaseUrl(apiBaseUrl?: string): string {
   } catch {
     return DEFAULT_BACKEND_API_BASE_URL;
   }
+}
+
+function shouldSyncDesktopManagedApiBaseUrl(apiBaseUrl: string): boolean {
+  if (!apiBaseUrl) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(apiBaseUrl);
+    const normalizedPath = parsed.pathname.replace(/\/+$/, "") || "/";
+    return isLoopbackHost(parsed.hostname) && normalizedPath === "/api";
+  } catch {
+    return true;
+  }
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "localhost";
 }

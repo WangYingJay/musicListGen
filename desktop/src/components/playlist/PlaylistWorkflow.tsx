@@ -7,12 +7,13 @@ import { SelectMenu } from "../common/SelectMenu";
 import { visualPrompts } from "../../data/visualPrompts";
 import { useConfigStore } from "../../stores/configStore";
 import { useTaskStore } from "../../stores/taskStore";
+import { showToast } from "../../stores/toastStore";
 import type { GenerateInput, ImageTask } from "../../types";
+import { saveImageWithSystemDialog } from "../../utils/imageSaver";
 import { appendOperationLog } from "../../utils/operationLog";
 import { buildPlaylistGenerateInput, buildPlaylistPrompt, cleanSongList } from "../../utils/playlistPrompt";
 
 const CONFIG_KEY = "playlist-image-generator-config-v4";
-const LAST_RESULT_KEY = "playlist-image-generator-last-result-v4";
 const defaultSongList = ["告五人 - 爱人错过", "陈绮贞 - 旅行的意义", "Deca Joins - 海浪"].join("\n");
 const fallbackModelOptions = [{ id: "gpt-image-2", name: "GPT Image 2", supports_edit: true, sizes: ["1024x1024", "1024x1536", "1536x1024"] }];
 const qualityOptions: Array<{ value: GenerateInput["quality"]; label: string }> = [
@@ -57,7 +58,6 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
   const [avatarImages, setAvatarImages] = useState<UploadAsset[]>([]);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [finalPrompt, setFinalPrompt] = useState("");
-  const [restoredResult, setRestoredResult] = useState<{ imageUrl: string; finalPrompt: string; createdAt: string } | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,9 +84,9 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
   }, [currentTask, selectedTask, tasksById]);
 
   const displayedTask = selectedTask || currentTask || latestImageTask;
-  const displayedImageUrl = latestImageTask?.imageUrl || restoredResult?.imageUrl || "";
+  const displayedImageUrl = latestImageTask?.imageUrl || "";
   const displayedImageHref = displayedImageUrl ? new URL(displayedImageUrl, getBackendOrigin()).toString() : "";
-  const displayedPrompt = selectedTask?.prompt || finalPrompt || restoredResult?.finalPrompt || "";
+  const displayedPrompt = selectedTask?.prompt || latestImageTask?.prompt || finalPrompt || "";
   const previewTitle = selectedTask ? "已选历史结果" : artistName || "未命名艺名";
   const songCount = cleanedSongList ? cleanedSongList.split("\n").length : 0;
   const canGenerate = Boolean(visualPrompt.trim() && cleanedSongList && !isSubmitting && currentTask?.status !== "pending" && currentTask?.status !== "running");
@@ -95,6 +95,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
     const rawConfig = localStorage.getItem(CONFIG_KEY);
     if (rawConfig) {
       try {
+        // 这里只保留创作草稿类的本地输入；真正的任务结果和历史画廊统一以任务库为准。
         const config = JSON.parse(rawConfig);
         setPromptPresetId(config.promptPresetId || visualPrompts[0].id);
         setVisualPrompt(config.visualPrompt || visualPrompts[0].text);
@@ -106,19 +107,6 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
       } catch {
         appendOperationLog({ source: "创作台", level: "warn", message: "读取本地歌单配置失败" });
       }
-    }
-
-    try {
-      const rawResult = localStorage.getItem(LAST_RESULT_KEY);
-      if (rawResult) {
-        const parsedResult = JSON.parse(rawResult);
-        if (parsedResult?.imageUrl && parsedResult?.finalPrompt) {
-          setRestoredResult(parsedResult);
-          setFinalPrompt(parsedResult.finalPrompt);
-        }
-      }
-    } catch {
-      appendOperationLog({ source: "创作台", level: "warn", message: "读取上次生成结果失败" });
     }
 
     return () => {
@@ -157,13 +145,8 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
       if (currentTask.completed_at) {
         setElapsedMs(Math.max(0, Date.parse(currentTask.completed_at) - (startedAt || Date.now())));
       }
-      if (currentTask.status === "succeeded" && currentTask.imageUrl && finalPrompt) {
-        const result = { imageUrl: currentTask.imageUrl, finalPrompt, createdAt: currentTask.completed_at || new Date().toISOString() };
-        setRestoredResult(result);
-        localStorage.setItem(LAST_RESULT_KEY, JSON.stringify(result));
-      }
     }
-  }, [currentTask, finalPrompt, startedAt]);
+  }, [currentTask, startedAt]);
 
   function buildCurrentPrompt() {
     return buildPlaylistPrompt({
@@ -180,7 +163,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
     });
   }
 
-  function saveConfig() {
+  function saveConfig(shouldNotify = true) {
     const config = {
       promptPresetId,
       visualPrompt,
@@ -196,6 +179,12 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
       message: "已保存歌单创作配置",
       detail: { promptPresetId, songCount, hasUploads: allUploadedFiles.length > 0 }
     });
+    if (shouldNotify) {
+      showToast({
+        tone: "success",
+        title: "草稿已保存"
+      });
+    }
   }
 
   function applyPreset(presetId: string) {
@@ -225,15 +214,21 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
     clearBucket("materialImages");
     clearBucket("avatarImages");
     setFinalPrompt("");
-    setRestoredResult(null);
-    localStorage.removeItem(LAST_RESULT_KEY);
     setCurrentTaskId(null);
     appendOperationLog({ source: "创作台", message: "已重置歌单创作表单" });
+    showToast({
+      tone: "info",
+      title: "表单已重置"
+    });
   }
 
   async function submitPlaylist() {
     if (isSubmitting || currentTask?.status === "pending" || currentTask?.status === "running") {
       appendOperationLog({ source: "创作台", level: "warn", message: "当前已有任务在生成中" });
+      showToast({
+        tone: "warn",
+        title: "当前已有任务在生成中"
+      });
       return;
     }
 
@@ -244,10 +239,15 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
         message: "生成前校验失败",
         detail: "视觉提示词和歌曲列表必须填写"
       });
+      showToast({
+        tone: "warn",
+        title: "还不能生成",
+        description: "视觉提示词和歌曲列表必须填写"
+      });
       return;
     }
 
-    saveConfig();
+    saveConfig(false);
     const prompt = buildCurrentPrompt();
     setFinalPrompt(prompt);
     setIsSubmitting(true);
@@ -269,6 +269,11 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
         : await createGeneration(input, effectiveApiKey, upstreamApiBase);
       addTaskFromResponse(task, input);
       setCurrentTaskId(task.task_id);
+      showToast({
+        tone: "success",
+        title: "歌单生成任务已提交",
+        description: `${input.model} · ${input.size}`
+      });
     } catch (error) {
       setStartedAt(null);
       appendOperationLog({
@@ -276,6 +281,11 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
         level: "error",
         message: "歌单生成任务提交失败",
         detail: error instanceof Error ? error.message : String(error)
+      });
+      showToast({
+        tone: "error",
+        title: "歌单生成任务提交失败",
+        description: error instanceof Error ? error.message : String(error)
       });
     } finally {
       setIsSubmitting(false);
@@ -286,6 +296,10 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
     const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
     if (!images.length) {
       appendOperationLog({ source: "创作台", level: "warn", message: "没有检测到可用图片素材" });
+      showToast({
+        tone: "warn",
+        title: "没有检测到可用图片素材"
+      });
       return;
     }
 
@@ -334,24 +348,70 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
 
   async function copyGeneratedPrompt() {
     const prompt = buildCurrentPrompt();
-    await navigator.clipboard.writeText(prompt);
-    appendOperationLog({ source: "创作台", message: "已复制最终提示词草案" });
+    try {
+      await navigator.clipboard.writeText(prompt);
+      appendOperationLog({ source: "创作台", message: "已复制最终提示词草案" });
+      showToast({
+        tone: "success",
+        title: "已复制提示词草案"
+      });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        title: "复制提示词草案失败",
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   async function copyPromptPreview() {
     if (!displayedPrompt) {
       return;
     }
-    await navigator.clipboard.writeText(displayedPrompt);
-    appendOperationLog({ source: "创作台", message: "已复制最终提示词结果" });
+    try {
+      await navigator.clipboard.writeText(displayedPrompt);
+      appendOperationLog({ source: "创作台", message: "已复制最终提示词结果" });
+      showToast({
+        tone: "success",
+        title: "已复制最终提示词"
+      });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        title: "复制最终提示词失败",
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   async function downloadCurrentImage() {
     if (!displayedImageUrl) {
       return;
     }
-    downloadImage(displayedImageUrl, selectedTask ? "已选历史结果" : artistName, promptPresetId);
-    appendOperationLog({ source: "创作台", message: "已下载当前封面结果" });
+    try {
+      const result = await downloadImage(displayedImageUrl, selectedTask ? "已选历史结果" : artistName, promptPresetId);
+      if (result.saved) {
+        appendOperationLog({ source: "创作台", message: "已下载当前封面结果", detail: { path: result.path } });
+        showToast({
+          tone: "success",
+          title: "图片已保存",
+          description: result.path
+        });
+        return;
+      }
+      if (result.cancelled) {
+        showToast({
+          tone: "info",
+          title: "已取消保存图片"
+        });
+      }
+    } catch (error) {
+      showToast({
+        tone: "error",
+        title: "下载图片失败",
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   return (
@@ -631,14 +691,10 @@ function renderTaskStatus(task?: ImageTask): string {
   return "已停止等待";
 }
 
-function downloadImage(imageUrl: string, artistName: string, presetId: string) {
+async function downloadImage(imageUrl: string, artistName: string, presetId: string) {
   const presetLabel = visualPrompts.find((preset) => preset.id === presetId)?.label || "默认模板";
   const filename = `${sanitizeFilenamePart(artistName, "未命名艺名")}-歌单-${sanitizeFilenamePart(presetLabel, "默认模板")}.png`;
-  const link = document.createElement("a");
-  link.href = new URL(imageUrl, getBackendOrigin()).toString();
-  link.download = filename;
-  link.target = "_blank";
-  link.click();
+  return saveImageWithSystemDialog(imageUrl, filename);
 }
 
 function sanitizeFilenamePart(value: string, fallback: string): string {

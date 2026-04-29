@@ -38,6 +38,11 @@ class TaskStore:
                 )
                 """
             )
+            try:
+                conn.execute("ALTER TABLE image_tasks ADD COLUMN gallery_hidden INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                # 已存在旧库时保持幂等，避免每次启动都因重复迁移失败。
+                pass
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS backend_logs (
@@ -67,16 +72,17 @@ class TaskStore:
             "created_at": created_at,
             "started_at": None,
             "completed_at": None,
+            "gallery_hidden": 0,
         }
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO image_tasks (
                   id, kind, status, progress, message, error, request_json,
-                  result_json, image_path, created_at, started_at, completed_at
+                  result_json, image_path, created_at, started_at, completed_at, gallery_hidden
                 ) VALUES (
                   :id, :kind, :status, :progress, :message, :error, :request_json,
-                  :result_json, :image_path, :created_at, :started_at, :completed_at
+                  :result_json, :image_path, :created_at, :started_at, :completed_at, :gallery_hidden
                 )
                 """,
                 record,
@@ -84,16 +90,24 @@ class TaskStore:
             conn.commit()
         return self.get(task_id)
 
+    def list_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM image_tasks
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (max(1, min(limit, 1000)),),
+            ).fetchall()
+        return [self._deserialize_task_row(row) for row in rows]
+
     def get(self, task_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM image_tasks WHERE id = ?", (task_id,)).fetchone()
         if row is None:
             return None
-        record = dict(row)
-        record["request"] = json.loads(record.pop("request_json"))
-        result_json = record.pop("result_json")
-        record["result"] = json.loads(result_json) if result_json else None
-        return record
+        return self._deserialize_task_row(row)
 
     def update(self, task_id: str, **patch: Any) -> dict[str, Any]:
         if not patch:
@@ -111,6 +125,7 @@ class TaskStore:
             "image_path",
             "started_at",
             "completed_at",
+            "gallery_hidden",
         }
         fields = {key: value for key, value in patch.items() if key in allowed}
         if not fields:
@@ -150,6 +165,23 @@ class TaskStore:
             log_id = cursor.lastrowid
         return self.get_backend_log(int(log_id))
 
+    def finalize_incomplete_tasks(self) -> int:
+        with self._lock, self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE image_tasks
+                SET
+                  status = 'cancelled',
+                  progress = 100,
+                  message = '应用重启后，未完成任务已结束',
+                  completed_at = COALESCE(completed_at, ?)
+                WHERE status IN ('pending', 'running')
+                """,
+                (utc_now(),),
+            )
+            conn.commit()
+            return cursor.rowcount
+
     def list_backend_logs(self, after_id: int = 0, limit: int = 200) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -174,6 +206,14 @@ class TaskStore:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
+
+    def _deserialize_task_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        record = dict(row)
+        record["request"] = json.loads(record.pop("request_json"))
+        result_json = record.pop("result_json")
+        record["result"] = json.loads(result_json) if result_json else None
+        record["gallery_hidden"] = bool(record.get("gallery_hidden"))
+        return record
 
     def _format_detail(self, detail: Any) -> str | None:
         if detail is None or detail == "":

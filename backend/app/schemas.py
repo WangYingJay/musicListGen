@@ -30,10 +30,20 @@ class ImageTaskResponse(BaseModel):
     message: str
     error: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
+    request: Optional[Dict[str, Any]] = None
+    gallery_hidden: bool = False
     poll_url: str
     created_at: str
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
+
+
+class ImageTaskListResponse(BaseModel):
+    data: List[ImageTaskResponse]
+
+
+class GalleryVisibilityRequest(BaseModel):
+    hidden: bool = True
 
 
 class CapabilitiesResponse(BaseModel):

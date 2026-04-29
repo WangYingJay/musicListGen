@@ -31,6 +31,7 @@ export interface ImageTask {
   prompt: string;
   negativePrompt?: string;
   params: GenerateInput | Record<string, unknown>;
+  galleryHidden?: boolean;
   status: TaskStatus;
   progress: number;
   message: string;
@@ -56,6 +57,8 @@ export interface TaskResponse {
   result?: {
     data?: Array<{ url: string }>;
   } | null;
+  request?: Record<string, unknown> | null;
+  gallery_hidden?: boolean;
   poll_url: string;
   created_at: string;
   started_at?: string | null;
@@ -110,4 +113,10 @@ export interface BackendLogItem {
   source: string;
   message: string;
   detail?: string | null;
+}
+
+export interface SaveImageResult {
+  saved: boolean;
+  cancelled?: boolean;
+  path?: string;
 }

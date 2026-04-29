@@ -1,9 +1,11 @@
-import { Download, ImageIcon, UploadCloud } from "lucide-react";
+import { Copy, Download, ImageIcon, UploadCloud } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 import { setApiBaseUrl as applyApiBaseUrl } from "../api/client";
 import { fetchCapabilities, fetchModels } from "../api/capabilities";
 import { createEdit, createGeneration } from "../api/image";
+import { fetchTasks } from "../api/tasks";
+import { ToastViewport } from "../components/common/ToastViewport";
 import { GallerySidebar } from "../components/gallery/GallerySidebar";
 import { StatusBar } from "../components/layout/StatusBar";
 import { TopBar } from "../components/layout/TopBar";
@@ -16,7 +18,9 @@ import { useTaskPolling } from "../hooks/useTaskPolling";
 import { useConfigStore } from "../stores/configStore";
 import { useGalleryStore } from "../stores/galleryStore";
 import { useTaskStore } from "../stores/taskStore";
+import { showToast } from "../stores/toastStore";
 import type { GenerateInput, ImageTask, WorkspaceMode } from "../types";
+import { saveImageWithSystemDialog } from "../utils/imageSaver";
 import { appendOperationLog } from "../utils/operationLog";
 
 const defaultParams: GenerateInput = {
@@ -52,7 +56,9 @@ export function App() {
 
   const tasks = useTaskStore((state) => state.tasks);
   const activeTaskIds = useTaskStore((state) => state.activeTaskIds);
+  const hydrateTasks = useTaskStore((state) => state.hydrateTasks);
   const addTaskFromResponse = useTaskStore((state) => state.addTaskFromResponse);
+  const hydrateGalleryFromTasks = useGalleryStore((state) => state.hydrateFromTasks);
   const galleryItems = useGalleryStore((state) => state.items);
   const previousModeRef = useRef<WorkspaceMode | null>(null);
   const effectiveApiKey = useMemo(() => {
@@ -123,13 +129,15 @@ export function App() {
 
     void bootstrapDesktop();
     return () => dispose?.();
-  }, [setBackend, setCapabilities, setConnectionMessage, setModels]);
+  }, [hydrateGalleryFromTasks, hydrateTasks, setBackend, setCapabilities, setConnectionMessage, setModels]);
 
   async function loadBackendMetadata() {
     try {
-      const [capabilities, modelList] = await Promise.all([fetchCapabilities(), fetchModels()]);
+      const [capabilities, modelList, persistedTasks] = await Promise.all([fetchCapabilities(), fetchModels(), fetchTasks()]);
       setCapabilities(capabilities);
       setModels(modelList);
+      hydrateTasks(persistedTasks);
+      hydrateGalleryFromTasks(Object.values(useTaskStore.getState().tasks));
       return true;
     } catch {
       setConnectionMessage("后端元信息读取失败");
@@ -156,6 +164,11 @@ export function App() {
         message: "已提交普通生成任务",
         detail: { model: input.model, size: input.size }
       });
+      showToast({
+        tone: "success",
+        title: "生成任务已提交",
+        description: `${input.model} · ${input.size}`
+      });
       setMode("text");
     } catch (error) {
       appendOperationLog({
@@ -163,6 +176,11 @@ export function App() {
         level: "error",
         message: "普通生成任务提交失败",
         detail: error instanceof Error ? error.message : String(error)
+      });
+      showToast({
+        tone: "error",
+        title: "普通生成任务提交失败",
+        description: error instanceof Error ? error.message : String(error)
       });
     } finally {
       setIsSubmitting(false);
@@ -183,12 +201,22 @@ export function App() {
         message: "已提交参考图重绘任务",
         detail: { model: input.model, size: input.size, fileName: referenceFile.name }
       });
+      showToast({
+        tone: "success",
+        title: "重绘任务已提交",
+        description: `${input.model} · ${input.size}`
+      });
     } catch (error) {
       appendOperationLog({
         source: "修图",
         level: "error",
         message: "参考图重绘任务提交失败",
         detail: error instanceof Error ? error.message : String(error)
+      });
+      showToast({
+        tone: "error",
+        title: "参考图重绘任务提交失败",
+        description: error instanceof Error ? error.message : String(error)
       });
     } finally {
       setIsSubmitting(false);
@@ -251,6 +279,7 @@ export function App() {
         useServerKey={Boolean(capabilities?.server_key_configured) && useServerKey}
         hasLocalKey={Boolean(apiKey.trim())}
       />
+      <ToastViewport />
     </div>
   );
 }
@@ -290,20 +319,30 @@ function ResultPreview({ task }: { task?: ImageTask }) {
 }
 
 async function saveImage(url: string, defaultName: string) {
-  if (window.desktopApi) {
-    await window.desktopApi.saveImage({ url, defaultName });
-    return;
-  }
+  try {
+    const result = await saveImageWithSystemDialog(url, defaultName);
+    if (result.saved) {
+      showToast({
+        tone: "success",
+        title: "图片已保存",
+        description: result.path || defaultName
+      });
+      return;
+    }
 
-  const backendBase = useConfigStore.getState().backend.baseUrl || "http://127.0.0.1:8765";
-  const response = await fetch(new URL(url, backendBase).toString());
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = defaultName;
-  link.click();
-  URL.revokeObjectURL(objectUrl);
+    if (result.cancelled) {
+      showToast({
+        tone: "info",
+        title: "已取消保存图片"
+      });
+    }
+  } catch (error) {
+    showToast({
+      tone: "error",
+      title: "保存图片失败",
+      description: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 
 interface EditWorkspaceProps {
@@ -360,22 +399,140 @@ function EditWorkspace({
 
 function GalleryOverview() {
   const items = useGalleryStore((state) => state.items);
+  const selectedTaskId = useTaskStore((state) => state.selectedTaskId);
+  const selectTask = useTaskStore((state) => state.selectTask);
+  const tasksById = useTaskStore((state) => state.tasks);
   const backendBase = useConfigStore((state) => state.backend.baseUrl || "http://127.0.0.1:8765");
+  const selectedItem = items.find((item) => item.taskId === selectedTaskId) || items[0];
+  const selectedTask = selectedItem ? tasksById[selectedItem.taskId] : undefined;
+  const previewUrl = selectedItem ? new URL(selectedItem.imageUrl, backendBase).toString() : "";
+
+  async function copyPrompt() {
+    if (!selectedItem?.prompt) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selectedItem.prompt);
+      appendOperationLog({ source: "画廊", message: "已复制画廊提示词" });
+      showToast({
+        tone: "success",
+        title: "已复制提示词"
+      });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        title: "复制提示词失败",
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  async function saveCurrentImage() {
+    if (!selectedItem) {
+      return;
+    }
+    try {
+      const result = await saveImageWithSystemDialog(selectedItem.imageUrl, `${selectedItem.taskId}.png`);
+      if (result.saved) {
+        appendOperationLog({ source: "画廊", message: "已保存画廊图片", detail: { taskId: selectedItem.taskId, path: result.path } });
+        showToast({
+          tone: "success",
+          title: "图片已保存",
+          description: result.path || `${selectedItem.taskId}.png`
+        });
+        return;
+      }
+      if (result.cancelled) {
+        showToast({
+          tone: "info",
+          title: "已取消保存图片"
+        });
+      }
+    } catch (error) {
+      showToast({
+        tone: "error",
+        title: "保存画廊图片失败",
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
 
   return (
-    <section className="overview-grid">
-      {items.map((item) => (
-        <article key={item.id} className="overview-tile">
-          <img src={new URL(item.imageUrl, backendBase).toString()} alt={item.prompt} />
-          <div>
-            <strong>{item.model}</strong>
-            <span>{item.size}</span>
-          </div>
-        </article>
-      ))}
-      {items.length === 0 && <p className="empty-state">暂无画廊记录</p>}
+    <section className="gallery-overview-shell">
+      <div className="overview-grid">
+        {items.map((item) => {
+          const active = selectedItem?.taskId === item.taskId;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={active ? "overview-tile active" : "overview-tile"}
+              onClick={() => {
+                selectTask(item.taskId);
+                appendOperationLog({ source: "画廊", message: `已查看画廊详情 ${item.taskId}` });
+              }}
+            >
+              <img src={new URL(item.imageUrl, backendBase).toString()} alt={item.prompt} />
+              <div>
+                <strong>{item.model}</strong>
+                <span>{item.size}</span>
+              </div>
+            </button>
+          );
+        })}
+        {items.length === 0 && <p className="empty-state">暂无画廊记录</p>}
+      </div>
+
+      <aside className="gallery-detail-panel">
+        {selectedItem ? (
+          <>
+            <div className="gallery-detail-preview">
+              <img src={previewUrl} alt={selectedItem.prompt} />
+            </div>
+            <div className="gallery-detail-copy">
+              <div className="section-header">
+                <div>
+                  <p className="eyebrow">Gallery Detail</p>
+                  <h1>图片详情</h1>
+                </div>
+              </div>
+              <div className="gallery-detail-meta">
+                <span>模型 {selectedItem.model}</span>
+                <span>尺寸 {selectedItem.size}</span>
+                <span>任务 {selectedItem.taskId}</span>
+                <span>时间 {formatLocalTime(selectedItem.createdAt)}</span>
+                <span>状态 {selectedTask?.status || "succeeded"}</span>
+              </div>
+              <p className="gallery-detail-message">{selectedTask?.message || "这张结果已经持久化保存到本地任务库中。"}</p>
+              <pre className="prompt-preview-box">{selectedItem.prompt || "没有可展示的提示词"}</pre>
+              <div className="workflow-actions result-column-actions">
+                <button type="button" className="ghost-button" onClick={() => void copyPrompt()}>
+                  <Copy size={14} />
+                  复制提示词
+                </button>
+                <button type="button" className="ghost-button" onClick={() => void saveCurrentImage()}>
+                  <Download size={14} />
+                  保存图片
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="empty-state">点击左侧缩略图后，这里会显示图片详情与保存入口</p>
+        )}
+      </aside>
     </section>
   );
+}
+
+function formatLocalTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return value;
+  }
+  return new Date(timestamp).toLocaleString("zh-CN", {
+    hour12: false
+  });
 }
 
 function TaskCenter() {

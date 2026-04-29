@@ -1,22 +1,25 @@
-import { AlertCircle, CheckCircle2, Clock3, Copy, Download, Loader2, PauseCircle, Search, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, Copy, Download, Loader2, PauseCircle, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 
 import { getBackendOrigin } from "../../api/client";
+import { updateTaskGalleryVisibility } from "../../api/tasks";
 import { useGalleryStore } from "../../stores/galleryStore";
 import { useTaskStore } from "../../stores/taskStore";
+import { showToast } from "../../stores/toastStore";
 import type { GalleryItem, ImageTask } from "../../types";
+import { saveImageWithSystemDialog } from "../../utils/imageSaver";
 import { appendOperationLog } from "../../utils/operationLog";
 
 export function GallerySidebar() {
   const items = useGalleryStore((state) => state.items);
   const query = useGalleryStore((state) => state.query);
-  const setQuery = useGalleryStore((state) => state.setQuery);
   const removeItem = useGalleryStore((state) => state.removeItem);
 
   const tasksById = useTaskStore((state) => state.tasks);
   const selectedTaskId = useTaskStore((state) => state.selectedTaskId);
   const stopLocalTask = useTaskStore((state) => state.stopLocalTask);
   const selectTask = useTaskStore((state) => state.selectTask);
+  const updateTaskFromResponse = useTaskStore((state) => state.updateTaskFromResponse);
 
   const backendOrigin = getBackendOrigin();
   const normalizedQuery = query.trim().toLowerCase();
@@ -144,8 +147,7 @@ export function GallerySidebar() {
                       aria-label="复制提示词"
                       onClick={(event) => {
                         event.stopPropagation();
-                        void navigator.clipboard.writeText(item.prompt);
-                        appendOperationLog({ source: "画廊", message: "已复制历史提示词" });
+                        void copyPrompt(item.prompt);
                       }}
                     >
                       <Copy size={13} />
@@ -157,7 +159,6 @@ export function GallerySidebar() {
                       onClick={(event) => {
                         event.stopPropagation();
                         void saveGalleryImage(item.imageUrl, `${item.taskId}.png`);
-                        appendOperationLog({ source: "画廊", message: "已下载历史图片" });
                       }}
                     >
                       <Download size={13} />
@@ -165,10 +166,10 @@ export function GallerySidebar() {
                     <button
                       type="button"
                       className="sidebar-inline-icon"
-                      aria-label="删除历史记录"
+                      aria-label="隐藏历史记录"
                       onClick={(event) => {
                         event.stopPropagation();
-                        removeItem(item.id);
+                        void hideGalleryItem(item.taskId, item.id);
                       }}
                     >
                       <Trash2 size={13} />
@@ -183,6 +184,25 @@ export function GallerySidebar() {
       </div>
     </aside>
   );
+
+  async function hideGalleryItem(taskId: string, itemId: string) {
+    try {
+      const response = await updateTaskGalleryVisibility(taskId, true);
+      updateTaskFromResponse(response);
+      removeItem(itemId);
+      appendOperationLog({ source: "画廊", level: "warn", message: `已隐藏历史结果 ${taskId}` });
+      showToast({
+        tone: "success",
+        title: "已从历史画廊隐藏"
+      });
+    } catch (error) {
+      showToast({
+        tone: "error",
+        title: "隐藏历史结果失败",
+        description: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
 }
 
 function matchesTask(task: ImageTask, query: string) {
@@ -217,17 +237,46 @@ function renderTaskIcon(status: ImageTask["status"]) {
 }
 
 async function saveGalleryImage(url: string, defaultName: string) {
-  if (window.desktopApi) {
-    await window.desktopApi.saveImage({ url, defaultName });
-    return;
-  }
+  try {
+    const result = await saveImageWithSystemDialog(url, defaultName);
+    if (result.saved) {
+      appendOperationLog({ source: "画廊", message: "已保存历史图片", detail: { path: result.path, defaultName } });
+      showToast({
+        tone: "success",
+        title: "图片已保存",
+        description: result.path || defaultName
+      });
+      return;
+    }
 
-  const response = await fetch(new URL(url, "http://127.0.0.1:8765").toString());
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = defaultName;
-  link.click();
-  URL.revokeObjectURL(objectUrl);
+    if (result.cancelled) {
+      showToast({
+        tone: "info",
+        title: "已取消保存图片"
+      });
+    }
+  } catch (error) {
+    showToast({
+      tone: "error",
+      title: "保存历史图片失败",
+      description: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+async function copyPrompt(prompt: string) {
+  try {
+    await navigator.clipboard.writeText(prompt);
+    appendOperationLog({ source: "画廊", message: "已复制历史提示词" });
+    showToast({
+      tone: "success",
+      title: "已复制历史提示词"
+    });
+  } catch (error) {
+    showToast({
+      tone: "error",
+      title: "复制历史提示词失败",
+      description: error instanceof Error ? error.message : String(error)
+    });
+  }
 }

@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 
 from .config import get_settings
 from .image_service import run_edit_task, run_generation_task
-from .schemas import BackendLogItem, BackendLogListResponse, CapabilitiesResponse, GenerateImageRequest, ImageTaskResponse, ModelItem, ModelListResponse
+from .schemas import BackendLogItem, BackendLogListResponse, CapabilitiesResponse, GalleryVisibilityRequest, GenerateImageRequest, ImageTaskListResponse, ImageTaskResponse, ModelItem, ModelListResponse
 from .task_store import TaskStore
 
 settings = get_settings()
@@ -29,6 +29,14 @@ app.add_middleware(
 @app.on_event("startup")
 def startup() -> None:
     store.init()
+    finalized_count = store.finalize_incomplete_tasks()
+    if finalized_count:
+        store.append_backend_log(
+            "warn",
+            "后端",
+            "已收口上次未完成的本地任务",
+            {"count": finalized_count},
+        )
     store.append_backend_log(
         "info",
         "后端",
@@ -71,6 +79,12 @@ def backend_logs(after_id: int = 0, limit: int = 100) -> BackendLogListResponse:
     return BackendLogListResponse(data=entries)
 
 
+@app.get("/api/tasks", response_model=ImageTaskListResponse)
+def list_tasks(limit: int = 200) -> ImageTaskListResponse:
+    tasks = [_to_response(task) for task in store.list_tasks(limit=limit)]
+    return ImageTaskListResponse(data=tasks)
+
+
 @app.post("/api/images/generations", response_model=ImageTaskResponse)
 async def create_generation(
     payload: GenerateImageRequest,
@@ -98,8 +112,13 @@ async def create_edit(
     image: List[UploadFile] = File(...),
     model: str = Form("gpt-image-2"),
     prompt: str = Form(...),
+    negative_prompt: Optional[str] = Form(default=None),
     size: str = Form("1024x1024"),
+    n: int = Form(1),
     quality: str = Form("auto"),
+    steps: Optional[int] = Form(default=None),
+    cfg_scale: Optional[float] = Form(default=None),
+    seed: Optional[int] = Form(default=None),
     authorization: Optional[str] = Header(default=None),
     x_upstream_api_base: Optional[str] = Header(default=None),
 ) -> ImageTaskResponse:
@@ -113,7 +132,18 @@ async def create_edit(
         upload_paths.append(upload_path)
 
     # 参考图只保存本地路径，临时 Key 不进入任务库，避免密钥被持久化。
-    payload = {"model": model, "prompt": prompt, "size": size, "quality": quality, "image_paths": [str(path) for path in upload_paths]}
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "size": size,
+        "n": n,
+        "quality": quality,
+        "steps": steps,
+        "cfg_scale": cfg_scale,
+        "seed": seed,
+        "image_paths": [str(path) for path in upload_paths],
+    }
     task = store.create(task_id, "edits", payload)
     background_tasks.add_task(
         run_edit_task,
@@ -134,6 +164,15 @@ def get_task(task_id: str) -> ImageTaskResponse:
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return _to_response(task)
+
+
+@app.patch("/api/tasks/{task_id}/gallery", response_model=ImageTaskResponse)
+def update_task_gallery_visibility(task_id: str, payload: GalleryVisibilityRequest) -> ImageTaskResponse:
+    task = store.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    updated_task = store.update(task_id, gallery_hidden=1 if payload.hidden else 0)
+    return _to_response(updated_task)
 
 
 @app.get("/api/tasks/{task_id}/image")
@@ -157,6 +196,8 @@ def _to_response(task: dict) -> ImageTaskResponse:
         message=task["message"],
         error=task["error"],
         result=task["result"],
+        request=task.get("request"),
+        gallery_hidden=bool(task.get("gallery_hidden")),
         poll_url=f"/api/tasks/{task['id']}",
         created_at=task["created_at"],
         started_at=task["started_at"],

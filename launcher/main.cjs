@@ -266,7 +266,7 @@ async function saveImageFromBackend(input) {
   });
 
   if (saveResult.canceled || !saveResult.filePath) {
-    return { saved: false };
+    return { saved: false, cancelled: true };
   }
 
   const response = await fetch(resolvedUrl);

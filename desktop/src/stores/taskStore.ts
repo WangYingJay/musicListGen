@@ -7,6 +7,7 @@ interface TaskState {
   tasks: Record<string, ImageTask>;
   activeTaskIds: string[];
   selectedTaskId: string | null;
+  hydrateTasks: (tasks: TaskResponse[]) => void;
   addTaskFromResponse: (task: TaskResponse, input: GenerateInput) => void;
   updateTaskFromResponse: (task: TaskResponse) => void;
   stopLocalTask: (taskId: string) => void;
@@ -17,6 +18,21 @@ export const useTaskStore = create<TaskState>((set) => ({
   tasks: {},
   activeTaskIds: [],
   selectedTaskId: null,
+  hydrateTasks: (tasks) =>
+    set((state) => {
+      const nextTasks = tasks.reduce<Record<string, ImageTask>>((accumulator, task) => {
+        accumulator[task.task_id] = responseToImageTask(task);
+        return accumulator;
+      }, {});
+
+      return {
+        tasks: nextTasks,
+        activeTaskIds: Object.values(nextTasks)
+          .filter((task) => task.status === "pending" || task.status === "running")
+          .map((task) => task.task_id),
+        selectedTaskId: state.selectedTaskId && nextTasks[state.selectedTaskId] ? state.selectedTaskId : null
+      };
+    }),
   addTaskFromResponse: (task, input) =>
     set((state) => {
       const imageTask = responseToImageTask(task, input);
@@ -37,12 +53,17 @@ export const useTaskStore = create<TaskState>((set) => ({
     set((state) => {
       const current = state.tasks[task.task_id];
       if (!current) {
-        return state;
+        const imageTask = responseToImageTask(task);
+        return {
+          tasks: { ...state.tasks, [task.task_id]: imageTask },
+          activeTaskIds: syncActiveTaskIds(state.activeTaskIds, task.task_id, task.status)
+        };
       }
       const didStatusChange = current.status !== task.status;
       const didMessageChange = current.message !== task.message;
       const imageTask = {
         ...current,
+        galleryHidden: Boolean(task.gallery_hidden),
         status: task.status,
         progress: task.progress,
         message: task.message,
@@ -66,10 +87,7 @@ export const useTaskStore = create<TaskState>((set) => ({
           detail: task.error || task.message
         });
       }
-      const isActive = task.status === "pending" || task.status === "running";
-      const nextActiveTaskIds = isActive
-        ? state.activeTaskIds
-        : state.activeTaskIds.filter((taskId) => taskId !== task.task_id);
+      const nextActiveTaskIds = syncActiveTaskIds(state.activeTaskIds, task.task_id, task.status);
       if (
         !didStatusChange
         && !didMessageChange
@@ -114,14 +132,48 @@ export const useTaskStore = create<TaskState>((set) => ({
   selectTask: (taskId) => set({ selectedTaskId: taskId })
 }));
 
-function responseToImageTask(task: TaskResponse, input: GenerateInput): ImageTask {
+function responseToImageTask(task: TaskResponse, input?: GenerateInput): ImageTask {
+  const fallbackInput: GenerateInput = input || {
+    model: "gpt-image-2",
+    prompt: "",
+    size: "1024x1024",
+    n: 1,
+    quality: "auto"
+  };
+  return buildImageTask(task, fallbackInput);
+}
+
+function buildImageTask(task: TaskResponse, input: GenerateInput): ImageTask {
+  const request = toRecord(task.request);
+  const prompt = readString(request?.prompt) || input.prompt;
+  const negativePrompt = readString(request?.negative_prompt) || input.negative_prompt;
+  const model = readString(request?.model) || input.model;
+  const size = readString(request?.size) || input.size;
+  const n = readNumber(request?.n) ?? input.n;
+  const quality = readQuality(request?.quality) || input.quality;
+  const steps = readNumber(request?.steps) ?? input.steps;
+  const cfgScale = readNumber(request?.cfg_scale) ?? input.cfg_scale;
+  const seed = readNumber(request?.seed) ?? input.seed;
+
   return {
     id: task.id,
     task_id: task.task_id,
     kind: task.kind,
-    prompt: input.prompt,
-    negativePrompt: input.negative_prompt,
-    params: input,
+    prompt,
+    negativePrompt,
+    galleryHidden: Boolean(task.gallery_hidden),
+    params: {
+      ...(request || {}),
+      model,
+      prompt,
+      negative_prompt: negativePrompt,
+      size,
+      n,
+      quality,
+      ...(typeof steps === "number" ? { steps } : {}),
+      ...(typeof cfgScale === "number" ? { cfg_scale: cfgScale } : {}),
+      ...(typeof seed === "number" ? { seed } : {})
+    },
     status: task.status,
     progress: task.progress,
     message: task.message,
@@ -133,4 +185,28 @@ function responseToImageTask(task: TaskResponse, input: GenerateInput): ImageTas
     started_at: task.started_at,
     completed_at: task.completed_at
   };
+}
+
+function syncActiveTaskIds(activeTaskIds: string[], taskId: string, status: TaskResponse["status"]): string[] {
+  const isActive = status === "pending" || status === "running";
+  if (isActive) {
+    return activeTaskIds.includes(taskId) ? activeTaskIds : [taskId, ...activeTaskIds];
+  }
+  return activeTaskIds.filter((currentTaskId) => currentTaskId !== taskId);
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readQuality(value: unknown): GenerateInput["quality"] | undefined {
+  return value === "auto" || value === "standard" || value === "high" ? value : undefined;
 }

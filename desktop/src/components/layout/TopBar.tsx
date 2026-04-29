@@ -1,6 +1,7 @@
-import { Activity, ImagePlus, Images, ListChecks, ScrollText, Settings, Sparkles, Wand2 } from "lucide-react";
+import { Activity, Images, ListChecks, ScrollText, Settings, Sparkles, Wand2 } from "lucide-react";
 
 import type { WorkspaceMode } from "../../types";
+import brandLogo from "../../../../assets/logo-source.png";
 
 interface TopBarProps {
   mode: WorkspaceMode;
@@ -23,7 +24,7 @@ export function TopBar({ mode, onModeChange, galleryCount, queueCount, backendSt
     <header className="top-bar">
       <div className="brand-mark">
         <div className="brand-icon">
-          <ImagePlus size={18} />
+          <img className="brand-logo" src={brandLogo} alt="有品服务 Logo" />
         </div>
         <div className="brand-copy">
           <strong>有品服务</strong>

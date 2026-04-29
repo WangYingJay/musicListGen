@@ -1,0 +1,324 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e10]: 有品服务-歌单生成
+    - navigation "主导航" [ref=e11]:
+      - button "歌单生成" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+        - generic [ref=e15]: 歌单生成
+      - button "图生图" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - generic [ref=e20]: 图生图
+      - button "画廊" [ref=e21] [cursor=pointer]:
+        - img [ref=e22]
+        - generic [ref=e27]: 画廊
+      - button "任务" [ref=e28] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e32]: 任务
+      - button "设置" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: 设置
+  - main [ref=e38]:
+    - complementary [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - paragraph [ref=e42]: Gallery
+          - heading "历史画廊" [level=2] [ref=e43]
+        - generic [ref=e44]:
+          - button [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+          - button [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+      - generic [ref=e51]:
+        - img [ref=e52]
+        - textbox [ref=e55]:
+          - /placeholder: 搜索提示词
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - paragraph [ref=e61]: Playlist Workflow
+          - heading "歌单图片生成工作台" [level=1] [ref=e62]
+        - generic [ref=e63]:
+          - button "保存配置" [ref=e64] [cursor=pointer]:
+            - img [ref=e65]
+            - text: 保存配置
+          - button "重置" [ref=e69] [cursor=pointer]:
+            - img [ref=e70]
+            - text: 重置
+      - generic [ref=e75]:
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - generic [ref=e78]:
+              - paragraph [ref=e79]: Composer
+              - heading "生成配置" [level=2] [ref=e80]
+            - img [ref=e81]
+          - generic [ref=e84]:
+            - generic [ref=e85]:
+              - generic [ref=e86]: 视觉模板
+              - combobox "视觉模板" [ref=e87]:
+                - option "城市夜晚柔光" [selected]
+                - option "雨夜窗边"
+                - option "霓虹通勤"
+                - option "卧室耳机"
+                - option "黑胶休息室"
+                - option "蓝调天台"
+                - option "胶片日记"
+                - option "极简编辑感"
+                - option "夜班巴士"
+                - option "午夜咖啡馆"
+                - option "银色镜面"
+                - option "凌晨将亮"
+                - option "静音书页"
+                - option "复古流行清版"
+                - option "粉雾夜色"
+                - option "黑白情绪"
+                - option "街头贴报"
+                - option "云雾梦境"
+                - option "旅店长廊"
+                - option "海风夜色"
+                - option "雨夜地铁·编辑网格"
+                - option "雨夜地铁·纸张贴报"
+                - option "雨夜地铁·极简分栏"
+                - option "雨夜地铁·电影字幕感"
+                - option "雨夜地铁·档案页"
+                - option "雨夜地铁·柔和目录册"
+                - option "雨夜地铁·时尚排印"
+                - option "雨夜地铁·手帐札记"
+                - option "雨夜地铁·屏幕界面感"
+                - option "雨夜地铁·展签排版"
+                - option "天台晚风·编辑网格"
+                - option "天台晚风·纸张贴报"
+                - option "天台晚风·极简分栏"
+                - option "天台晚风·电影字幕感"
+                - option "天台晚风·档案页"
+                - option "天台晚风·柔和目录册"
+                - option "天台晚风·时尚排印"
+                - option "天台晚风·手帐札记"
+                - option "天台晚风·屏幕界面感"
+                - option "天台晚风·展签排版"
+                - option "录音室黑胶·编辑网格"
+                - option "录音室黑胶·纸张贴报"
+                - option "录音室黑胶·极简分栏"
+                - option "录音室黑胶·电影字幕感"
+                - option "录音室黑胶·档案页"
+                - option "录音室黑胶·柔和目录册"
+                - option "录音室黑胶·时尚排印"
+                - option "录音室黑胶·手帐札记"
+                - option "录音室黑胶·屏幕界面感"
+                - option "录音室黑胶·展签排版"
+                - option "旅店凌晨·编辑网格"
+                - option "旅店凌晨·纸张贴报"
+                - option "旅店凌晨·极简分栏"
+                - option "旅店凌晨·电影字幕感"
+                - option "旅店凌晨·档案页"
+                - option "旅店凌晨·柔和目录册"
+                - option "旅店凌晨·时尚排印"
+                - option "旅店凌晨·手帐札记"
+                - option "旅店凌晨·屏幕界面感"
+                - option "旅店凌晨·展签排版"
+                - option "街角霓虹·编辑网格"
+                - option "街角霓虹·纸张贴报"
+                - option "街角霓虹·极简分栏"
+                - option "街角霓虹·电影字幕感"
+                - option "街角霓虹·档案页"
+                - option "街角霓虹·柔和目录册"
+                - option "街角霓虹·时尚排印"
+                - option "街角霓虹·手帐札记"
+                - option "街角霓虹·屏幕界面感"
+                - option "街角霓虹·展签排版"
+                - option "夜读书页·编辑网格"
+                - option "夜读书页·纸张贴报"
+                - option "夜读书页·极简分栏"
+                - option "夜读书页·电影字幕感"
+                - option "夜读书页·档案页"
+                - option "夜读书页·柔和目录册"
+                - option "夜读书页·时尚排印"
+                - option "夜读书页·手帐札记"
+                - option "夜读书页·屏幕界面感"
+                - option "夜读书页·展签排版"
+                - option "海边将亮·编辑网格"
+                - option "海边将亮·纸张贴报"
+                - option "海边将亮·极简分栏"
+                - option "海边将亮·电影字幕感"
+                - option "海边将亮·档案页"
+                - option "海边将亮·柔和目录册"
+                - option "海边将亮·时尚排印"
+                - option "海边将亮·手帐札记"
+                - option "海边将亮·屏幕界面感"
+                - option "海边将亮·展签排版"
+                - option "咖啡馆打烊·编辑网格"
+                - option "咖啡馆打烊·纸张贴报"
+                - option "咖啡馆打烊·极简分栏"
+                - option "咖啡馆打烊·电影字幕感"
+                - option "咖啡馆打烊·档案页"
+                - option "咖啡馆打烊·柔和目录册"
+                - option "咖啡馆打烊·时尚排印"
+                - option "咖啡馆打烊·手帐札记"
+                - option "咖啡馆打烊·屏幕界面感"
+                - option "咖啡馆打烊·展签排版"
+                - option "卧室磁带·编辑网格"
+                - option "卧室磁带·纸张贴报"
+                - option "卧室磁带·极简分栏"
+                - option "卧室磁带·电影字幕感"
+                - option "卧室磁带·档案页"
+                - option "卧室磁带·柔和目录册"
+                - option "卧室磁带·时尚排印"
+                - option "卧室磁带·手帐札记"
+                - option "卧室磁带·屏幕界面感"
+                - option "卧室磁带·展签排版"
+                - option "银灰展厅·编辑网格"
+                - option "银灰展厅·纸张贴报"
+                - option "银灰展厅·极简分栏"
+                - option "银灰展厅·电影字幕感"
+                - option "银灰展厅·档案页"
+                - option "银灰展厅·柔和目录册"
+                - option "银灰展厅·时尚排印"
+                - option "银灰展厅·手帐札记"
+                - option "银灰展厅·屏幕界面感"
+                - option "银灰展厅·展签排版"
+            - button "随机模板" [ref=e88] [cursor=pointer]:
+              - img [ref=e89]
+              - text: 随机模板
+          - generic [ref=e91]:
+            - generic [ref=e92]: 图片提示词
+            - textbox "图片提示词" [ref=e93]: 城市夜晚气质，克制、温柔，带一点失眠感但不悲伤。整体像一张安静、有设计感的音乐分享图，适合在社交平台发布。背景可以有窗边、耳机、微弱灯光和模糊街景，色调偏柔和，文字区域保持干净，阅读感清晰。
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]: 歌手艺名
+              - textbox "歌手艺名" [ref=e97]:
+                - /placeholder: 例如：AURORA / 落日主唱 / 你的艺名
+            - generic [ref=e98]:
+              - generic [ref=e99]: 风格发散度：0.8
+              - slider "风格发散度：0.8" [ref=e100]: "0.8"
+          - generic [ref=e101]:
+            - generic [ref=e102]: 固定歌曲列表
+            - textbox "固定歌曲列表" [ref=e103]:
+              - /placeholder: "每行一首，例如：\n告五人 - 爱人错过\n陈绮贞 - 旅行的意义"
+              - text: 告五人 - 爱人错过 陈绮贞 - 旅行的意义 Deca Joins - 海浪
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - generic [ref=e106]: 必须包含
+              - textbox "必须包含" [ref=e107]:
+                - /placeholder: 头像、霓虹灯、黑胶、歌手艺名文字
+            - generic [ref=e108]:
+              - generic [ref=e109]: 避免出现
+              - textbox "避免出现" [ref=e110]:
+                - /placeholder: 低清质感、乱码文字、过度赛博
+          - generic [ref=e111]:
+            - generic [ref=e112]:
+              - generic [ref=e113]: 临时 API Key
+              - generic [ref=e114]:
+                - textbox "临时 API Key" [ref=e115]:
+                  - /placeholder: 后端未配置时填写
+                - button [ref=e116] [cursor=pointer]:
+                  - img [ref=e117]
+            - button "复制最终提示词" [ref=e120] [cursor=pointer]:
+              - img [ref=e121]
+              - text: 复制最终提示词
+          - generic [ref=e124]:
+            - generic [ref=e125] [cursor=pointer]:
+              - img [ref=e126]
+              - generic [ref=e129]: 参考图
+            - generic [ref=e130]: 暂无图片
+          - generic [ref=e131]:
+            - generic [ref=e132] [cursor=pointer]:
+              - img [ref=e133]
+              - generic [ref=e136]: 素材图
+            - generic [ref=e137]: 暂无图片
+          - generic [ref=e138]:
+            - generic [ref=e139] [cursor=pointer]:
+              - img [ref=e140]
+              - generic [ref=e143]: 头像
+            - generic [ref=e144]: 暂无图片
+          - button "生成歌单图片" [ref=e145] [cursor=pointer]:
+            - img [ref=e146]
+            - text: 生成歌单图片
+        - generic [ref=e150]:
+          - generic [ref=e151]:
+            - generic [ref=e152]:
+              - paragraph [ref=e153]: Result
+              - heading "图片结果" [level=2] [ref=e154]
+            - generic [ref=e155]: 等待生成
+          - generic [ref=e157]:
+            - img [ref=e158]
+            - paragraph [ref=e162]: 输入歌曲列表和图片提示词后，点击生成图片。
+          - generic [ref=e163]:
+            - button "复制提示词" [disabled] [ref=e164] [cursor=pointer]:
+              - img [ref=e165]
+              - text: 复制提示词
+            - button "下载图片" [disabled] [ref=e168] [cursor=pointer]:
+              - img [ref=e169]
+              - text: 下载图片
+          - generic [ref=e172]:
+            - generic [ref=e173]: 耗时：0 秒
+            - generic [ref=e174]: 歌曲：3 首
+            - generic [ref=e175]: 素材：0 张
+          - generic [ref=e176]: 最终提示词会在提交任务时生成。
+          - generic [ref=e177]:
+            - generic [ref=e178]:
+              - paragraph [ref=e179]: Logs
+              - heading "生成日志" [level=2] [ref=e180]
+            - generic [ref=e181]:
+              - button "复制" [ref=e182] [cursor=pointer]:
+                - img [ref=e183]
+                - text: 复制
+              - button "清空" [ref=e186] [cursor=pointer]:
+                - img [ref=e187]
+                - text: 清空
+          - generic [ref=e190]: 等待日志输出。
+    - complementary [ref=e191]:
+      - generic [ref=e192]:
+        - generic [ref=e193]:
+          - paragraph [ref=e194]: Parameters
+          - heading "模型参数" [level=2] [ref=e195]
+        - img [ref=e196]
+      - generic [ref=e197]:
+        - generic [ref=e198]: 模型
+        - combobox "模型" [ref=e199]:
+          - option "GPT Image 2" [selected]
+      - generic [ref=e200]:
+        - generic [ref=e201]: 图片尺寸
+        - combobox "图片尺寸" [ref=e202]:
+          - option "1024x1024" [selected]
+          - option "1024x1536"
+          - option "1536x1024"
+      - generic [ref=e203]:
+        - generic [ref=e204]:
+          - generic [ref=e205]: 数量
+          - spinbutton "数量" [ref=e206]: "1"
+        - generic [ref=e207]:
+          - generic [ref=e208]: 质量
+          - combobox "质量" [ref=e209]:
+            - option "auto" [selected]
+            - option "standard"
+            - option "high"
+      - generic [ref=e210]:
+        - generic [ref=e211]: 采样步数：20
+        - slider "采样步数：20" [ref=e212]: "20"
+      - generic [ref=e213]:
+        - generic [ref=e214]: CFG Scale：7
+        - slider "CFG Scale：7" [ref=e215]: "7"
+      - generic [ref=e216]:
+        - generic [ref=e217]: Seed
+        - generic [ref=e218]:
+          - spinbutton "Seed" [ref=e219]
+          - button [ref=e220] [cursor=pointer]:
+            - img [ref=e221]
+  - complementary [ref=e224]:
+    - generic [ref=e226]:
+      - paragraph [ref=e227]: Queue
+      - heading "任务队列" [level=2] [ref=e228]
+    - paragraph [ref=e230]: 暂无任务
+  - contentinfo [ref=e231]:
+    - generic [ref=e232]:
+      - img [ref=e233]
+      - text: 后端在线
+    - generic [ref=e236]:
+      - img [ref=e237]
+      - text: 队列 0
+    - generic [ref=e239]:
+      - img [ref=e240]
+      - text: 画廊 0
+    - generic [ref=e244]: Key：本地配置
+    - generic [ref=e245]: 轻量桌面后端在线

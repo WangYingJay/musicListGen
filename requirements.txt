@@ -1,0 +1,15 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+httpx>=0.27.0
+python-multipart>=0.0.9
+pydantic-settings>=2.2.1
+pywebview>=5.3,<6
+
+# macOS 的系统 Python 可能还停在 3.9，PyObjC 12 对它不友好；这里锁在 12 以下，
+# 避免首次启动时长时间源码编译或安装失败。Windows 会忽略这些 macOS 专用依赖。
+pyobjc-core>=10,<12; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10,<12; sys_platform == "darwin"
+pyobjc-framework-Quartz>=10,<12; sys_platform == "darwin"
+pyobjc-framework-Security>=10,<12; sys_platform == "darwin"
+pyobjc-framework-WebKit>=10,<12; sys_platform == "darwin"
+pyobjc-framework-UniformTypeIdentifiers>=10,<12; sys_platform == "darwin"

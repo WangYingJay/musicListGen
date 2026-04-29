@@ -1,0 +1,106 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e247]
+      - generic [ref=e251]:
+        - strong [ref=e252]: 有品服务
+        - text: 歌单生成工作台
+    - navigation "主导航" [ref=e11]:
+      - button "歌单生成" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+        - generic [ref=e15]: 歌单生成
+      - button "图生图" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - generic [ref=e20]: 图生图
+      - button "画廊" [ref=e21] [cursor=pointer]:
+        - img [ref=e22]
+        - generic [ref=e27]: 画廊
+      - button "任务" [ref=e28] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e32]: 任务
+      - button "设置" [active] [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: 设置
+    - generic "工作区状态" [ref=e253]:
+      - generic [ref=e254]:
+        - img [ref=e255]
+        - text: 后端在线
+      - generic [ref=e257]:
+        - img [ref=e258]
+        - text: 队列 0
+      - generic [ref=e261]:
+        - img [ref=e262]
+        - text: 画廊 0
+  - main [ref=e38]:
+    - complementary [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - paragraph [ref=e42]: Gallery
+          - heading "历史画廊" [level=2] [ref=e43]
+        - generic [ref=e44]:
+          - text: "0"
+          - generic [ref=e267]:
+            - button [ref=e268] [cursor=pointer]:
+              - img [ref=e269]
+            - button [ref=e271] [cursor=pointer]:
+              - img [ref=e272]
+      - generic [ref=e51]:
+        - img [ref=e52]
+        - textbox [ref=e55]:
+          - /placeholder: 搜索提示词
+      - generic [ref=e274]:
+        - strong [ref=e275]: 还没有历史结果
+        - text: 新的封面生成完成后，这里会自动累积可回看的缩略图。
+    - generic [ref=e276]:
+      - generic [ref=e277]:
+        - generic [ref=e278]:
+          - paragraph [ref=e279]: API
+          - heading "连接配置" [level=2] [ref=e280]
+        - img [ref=e281]
+      - generic [ref=e284]:
+        - generic [ref=e285]: 本地后端 API Base URL
+        - textbox "本地后端 API Base URL" [ref=e286]:
+          - /placeholder: http://127.0.0.1:8765/api
+          - text: http://127.0.0.1:8765/api
+      - generic [ref=e287]:
+        - generic [ref=e288]: 上游 API Key
+        - generic [ref=e289]:
+          - textbox "上游 API Key" [ref=e290]:
+            - /placeholder: sk-...
+          - button [ref=e291] [cursor=pointer]:
+            - img [ref=e292]
+      - generic [ref=e295]:
+        - checkbox "使用服务端默认 Key" [disabled] [ref=e296]
+        - generic [ref=e297]: 使用服务端默认 Key
+      - generic [ref=e299]:
+        - img [ref=e300]
+        - text: 当前不携带 Key
+      - generic [ref=e303]:
+        - generic [ref=e304]: 代理模式
+        - combobox "代理模式" [ref=e305]:
+          - option "不使用代理" [selected]
+          - option "系统代理"
+          - option "HTTP 代理"
+          - option "SOCKS5 代理"
+      - button "保存并应用 API / Key" [ref=e306] [cursor=pointer]
+      - button "重启后端" [ref=e307] [cursor=pointer]:
+        - img [ref=e308]
+        - text: 重启后端
+      - paragraph [ref=e313]: API 地址与本地 Key 会保存到当前设备，切换开关只影响当前请求使用哪一种 Key。
+    - complementary [ref=e314]:
+      - generic [ref=e316]:
+        - paragraph [ref=e317]: Queue
+        - heading "任务队列" [level=2] [ref=e318]
+      - paragraph [ref=e320]: 暂无任务
+  - contentinfo [ref=e231]:
+    - generic [ref=e232]:
+      - img [ref=e233]
+      - text: 后端在线
+    - generic [ref=e236]:
+      - img [ref=e237]
+      - text: 队列 0
+    - generic [ref=e239]:
+      - img [ref=e240]
+      - text: 画廊 0
+    - generic [ref=e244]: Key：未配置
+    - generic [ref=e245]: 轻量桌面后端在线

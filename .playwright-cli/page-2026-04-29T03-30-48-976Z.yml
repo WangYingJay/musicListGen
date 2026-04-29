@@ -1,0 +1,124 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - generic [ref=e10]: 有品服务-歌单生成
+    - navigation "主导航" [ref=e11]:
+      - button "文生图" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+        - generic [ref=e15]: 文生图
+      - button "图生图" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - generic [ref=e20]: 图生图
+      - button "画廊" [ref=e21] [cursor=pointer]:
+        - img [ref=e22]
+        - generic [ref=e27]: 画廊
+      - button "任务" [ref=e28] [cursor=pointer]:
+        - img [ref=e29]
+        - generic [ref=e32]: 任务
+      - button "设置" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: 设置
+  - main [ref=e38]:
+    - complementary [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - paragraph [ref=e42]: Gallery
+          - heading "历史画廊" [level=2] [ref=e43]
+        - generic [ref=e44]:
+          - button [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+          - button [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+      - generic [ref=e51]:
+        - img [ref=e52]
+        - textbox [ref=e55]:
+          - /placeholder: 搜索提示词
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - paragraph [ref=e60]: Prompt
+            - heading "歌单海报生成" [level=1] [ref=e61]
+          - button "清空" [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+            - text: 清空
+        - generic [ref=e66]:
+          - button "夜晚城市" [ref=e67] [cursor=pointer]
+          - button "雨夜地铁" [ref=e68] [cursor=pointer]
+          - button "黑胶休息室" [ref=e69] [cursor=pointer]
+          - button "卧室耳机" [ref=e70] [cursor=pointer]
+          - button "电影感" [ref=e71] [cursor=pointer]
+          - button "胶片颗粒" [ref=e72] [cursor=pointer]
+          - button "studio lighting" [ref=e73] [cursor=pointer]
+        - generic [ref=e74]:
+          - generic [ref=e75]: 正向提示词
+          - textbox "正向提示词" [ref=e76]:
+            - /placeholder: 一张适合作为歌单封面的视觉海报，主体、氛围、颜色、构图...
+            - text: 夜晚城市里的独立音乐歌单封面，蓝绿色霓虹反射在雨水路面，电影感构图
+        - generic [ref=e77]:
+          - generic [ref=e78]: 反向提示词
+          - textbox "反向提示词" [ref=e79]:
+            - /placeholder: 低清晰度、变形文字、杂乱背景...
+            - text: 低清晰度，变形文字，杂乱边框
+        - button "生成图片" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+          - text: 生成图片
+      - generic [ref=e83]:
+        - img [ref=e84]
+        - paragraph [ref=e88]: 结果预览
+    - complementary [ref=e89]:
+      - generic [ref=e90]:
+        - generic [ref=e91]:
+          - paragraph [ref=e92]: Parameters
+          - heading "模型参数" [level=2] [ref=e93]
+        - img [ref=e94]
+      - generic [ref=e95]:
+        - generic [ref=e96]: 模型
+        - combobox "模型" [ref=e97]:
+          - option "GPT Image 2" [selected]
+      - generic [ref=e98]:
+        - generic [ref=e99]: 图片尺寸
+        - combobox "图片尺寸" [ref=e100]:
+          - option "1024x1024" [selected]
+          - option "1024x1536"
+          - option "1536x1024"
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e103]: 数量
+          - spinbutton "数量" [ref=e104]: "1"
+        - generic [ref=e105]:
+          - generic [ref=e106]: 质量
+          - combobox "质量" [ref=e107]:
+            - option "auto" [selected]
+            - option "standard"
+            - option "high"
+      - generic [ref=e108]:
+        - generic [ref=e109]: 采样步数：20
+        - slider "采样步数：20" [ref=e110]: "20"
+      - generic [ref=e111]:
+        - generic [ref=e112]: CFG Scale：7
+        - slider "CFG Scale：7" [ref=e113]: "7"
+      - generic [ref=e114]:
+        - generic [ref=e115]: Seed
+        - generic [ref=e116]:
+          - spinbutton "Seed" [ref=e117]
+          - button [ref=e118] [cursor=pointer]:
+            - img [ref=e119]
+  - complementary [ref=e122]:
+    - generic [ref=e124]:
+      - paragraph [ref=e125]: Queue
+      - heading "任务队列" [level=2] [ref=e126]
+    - paragraph [ref=e128]: 暂无任务
+  - contentinfo [ref=e129]:
+    - generic [ref=e130]:
+      - img [ref=e131]
+      - text: 后端启动中
+    - generic [ref=e134]:
+      - img [ref=e135]
+      - text: 队列 0
+    - generic [ref=e137]:
+      - img [ref=e138]
+      - text: 画廊 0
+    - generic [ref=e142]: Key：服务端默认
+    - generic [ref=e143]: 正在连接轻量桌面后端

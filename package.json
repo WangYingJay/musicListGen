@@ -1,0 +1,16 @@
+{
+  "name": "music-list-gen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "desktop"
+  ],
+  "scripts": {
+    "start:app": "bash scripts/start.sh",
+    "dev": "python launcher/app.py",
+    "frontend:dev": "npm run dev --workspace desktop",
+    "build": "npm run build --workspace desktop",
+    "backend:dev": "uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8765"
+  }
+}

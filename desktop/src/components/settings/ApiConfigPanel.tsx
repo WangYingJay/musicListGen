@@ -5,7 +5,7 @@ import { InvalidBackendApiBaseUrlError, setApiBaseUrl as applyApiBaseUrl } from 
 import { SelectMenu } from "../common/SelectMenu";
 import { useConfigStore } from "../../stores/configStore";
 import { usePlaylistDraftStore } from "../../stores/playlistDraftStore";
-import type { GenerateInput, ModelItem } from "../../types";
+import type { GenerateInput, ModelItem, SettingsSection } from "../../types";
 import { appendOperationLog } from "../../utils/operationLog";
 
 interface ApiConfigPanelProps {
@@ -13,9 +13,8 @@ interface ApiConfigPanelProps {
   params: GenerateInput;
   onParamsChange: (params: GenerateInput) => void;
   onRestartBackend: () => void;
+  initialSection?: SettingsSection;
 }
-
-type SettingsSection = "connection" | "output" | "creative" | "advanced";
 
 const proxyOptions = [
   { value: "none", label: "不使用代理" },
@@ -30,8 +29,8 @@ const qualityOptions: Array<{ value: GenerateInput["quality"]; label: string }> 
   { value: "high", label: "高质量" }
 ];
 
-export function ApiConfigPanel({ models, params, onParamsChange, onRestartBackend }: ApiConfigPanelProps) {
-  const [section, setSection] = useState<SettingsSection>("connection");
+export function ApiConfigPanel({ models, params, onParamsChange, onRestartBackend, initialSection = "connection" }: ApiConfigPanelProps) {
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const [showKey, setShowKey] = useState(false);
   const [showTemporaryKey, setShowTemporaryKey] = useState(false);
   const [baseUrlDraft, setBaseUrlDraft] = useState("");
@@ -73,6 +72,10 @@ export function ApiConfigPanel({ models, params, onParamsChange, onRestartBacken
     setApiKeyDraft(apiKey);
   }, [apiKey]);
 
+  useEffect(() => {
+    setSection(initialSection);
+  }, [initialSection]);
+
   function updateParam<K extends keyof GenerateInput>(key: K, value: GenerateInput[K], message: string) {
     onParamsChange({ ...params, [key]: value });
     appendOperationLog({ source: "设置", message, detail: { key, value } });
@@ -108,14 +111,15 @@ export function ApiConfigPanel({ models, params, onParamsChange, onRestartBacken
   }
 
   return (
-    <section className="settings-panel settings-workspace">
-      <div className="panel-heading">
+    <section className="view-shell settings-panel settings-workspace">
+      <header className="view-header settings-page-header">
         <div>
           <p className="eyebrow">Settings</p>
-          <h2>工作台设置</h2>
+          <h1>工作台设置</h1>
+          <span>连接、输出、创作偏好和高级采样都收拢到这里统一管理。</span>
         </div>
         <Settings2 size={18} />
-      </div>
+      </header>
 
       <div className="settings-tabs" role="tablist" aria-label="设置分类">
         {[

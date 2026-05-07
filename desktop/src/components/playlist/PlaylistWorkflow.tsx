@@ -1,5 +1,6 @@
 import { Bot, Copy, Dice5, Download, Frame, ImagePlus, Loader2, Music2, Palette, RefreshCw, Save, Sparkles, UploadCloud, X } from "lucide-react";
 import { type CSSProperties, ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getBackendOrigin } from "../../api/client";
 import { createEdit, createGeneration } from "../../api/image";
@@ -12,6 +13,7 @@ import type { GenerateInput, ImageTask } from "../../types";
 import { saveImageWithSystemDialog } from "../../utils/imageSaver";
 import { appendOperationLog } from "../../utils/operationLog";
 import { buildPlaylistGenerateInput, buildPlaylistPrompt, cleanSongList } from "../../utils/playlistPrompt";
+import { isPlaylistTask } from "../../utils/taskGrouping";
 
 const CONFIG_KEY = "playlist-image-generator-config-v4";
 const defaultSongList = ["告五人 - 爱人错过", "陈绮贞 - 旅行的意义", "Deca Joins - 海浪"].join("\n");
@@ -65,6 +67,8 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
 
   const currentTask = currentTaskId ? tasksById[currentTaskId] : undefined;
   const selectedTask = selectedTaskId ? tasksById[selectedTaskId] : undefined;
+  // 选中态是全局共享的，切到图生图后会残留编辑任务；这里只允许歌单工作台自己的任务接管预览。
+  const selectedPlaylistTask = isPlaylistTask(selectedTask) ? selectedTask : undefined;
   const allUploadedFiles = [...avatarImages, ...referenceImages, ...materialImages].map((asset) => asset.file);
   const cleanedSongList = cleanSongList(songList);
   const activePresetLabel = visualPrompts.find((preset) => preset.id === promptPresetId)?.label || visualPrompts[0].label;
@@ -72,24 +76,132 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
   const activeModel = modelOptions.find((model) => model.id === params.model) || modelOptions[0];
 
   const latestImageTask = useMemo(() => {
-    if (selectedTask?.imageUrl) {
-      return selectedTask;
+    if (selectedPlaylistTask?.imageUrl) {
+      return selectedPlaylistTask;
     }
     if (currentTask?.imageUrl) {
       return currentTask;
     }
     return Object.values(tasksById)
-      .filter((task) => task.imageUrl)
+      .filter((task) => isPlaylistTask(task) && task.imageUrl)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  }, [currentTask, selectedTask, tasksById]);
+  }, [currentTask, selectedPlaylistTask, tasksById]);
 
-  const displayedTask = selectedTask || currentTask || latestImageTask;
+  const displayedTask = selectedPlaylistTask || currentTask || latestImageTask;
   const displayedImageUrl = latestImageTask?.imageUrl || "";
   const displayedImageHref = displayedImageUrl ? new URL(displayedImageUrl, getBackendOrigin()).toString() : "";
-  const displayedPrompt = selectedTask?.prompt || latestImageTask?.prompt || finalPrompt || "";
-  const previewTitle = selectedTask ? "已选历史结果" : artistName || "未命名艺名";
+  const displayedPrompt = selectedPlaylistTask?.prompt || latestImageTask?.prompt || finalPrompt || "";
+  const previewTitle = selectedPlaylistTask ? "已选历史结果" : artistName || "未命名艺名";
   const songCount = cleanedSongList ? cleanedSongList.split("\n").length : 0;
   const canGenerate = Boolean(visualPrompt.trim() && cleanedSongList && !isSubmitting && currentTask?.status !== "pending" && currentTask?.status !== "running");
+
+  const composerShell = (
+    <section className="composer-shell" aria-label="聚合搜索框">
+      <div className="composer-shell-surface">
+        <div className="composer-core-grid composer-main-grid">
+          <textarea
+            className="composer-textarea composer-visual-input composer-main-textarea"
+            value={visualPrompt}
+            onChange={(event) => setVisualPrompt(event.target.value)}
+            placeholder="图片提示词"
+          />
+          <textarea
+            className="composer-textarea composer-song-input composer-main-textarea composer-song-priority"
+            value={songList}
+            onChange={(event) => setSongList(event.target.value)}
+            placeholder="歌曲列表"
+          />
+        </div>
+
+        <div className="composer-control-deck">
+          <div className="composer-control-cluster composer-control-cluster-template">
+            <button type="button" className="ghost-button composer-icon-button" title="随机模板" aria-label="随机模板" onClick={randomPreset}>
+              <Dice5 size={12} />
+            </button>
+            <SelectMenu
+              ariaLabel="视觉模板"
+              value={promptPresetId}
+              options={visualPrompts.map((preset) => ({ value: preset.id, label: preset.label }))}
+              icon={<Palette size={12} />}
+              triggerClassName="composer-select-trigger composer-template-trigger"
+              menuClassName="composer-select-menu"
+              onChange={applyPreset}
+            />
+          </div>
+
+          <div className="composer-control-cluster composer-control-cluster-models">
+            <SelectMenu
+              ariaLabel="模型"
+              value={params.model}
+              options={modelOptions.map((model) => ({ value: model.id, label: model.name }))}
+              icon={<Bot size={12} />}
+              hideValue
+              triggerClassName="composer-select-trigger"
+              menuClassName="composer-select-menu"
+              onChange={(value) => {
+                const nextModel = modelOptions.find((model) => model.id === value) || modelOptions[0];
+                const nextSize = nextModel.sizes.includes(params.size) ? params.size : nextModel.sizes[0];
+                onParamsChange({ ...params, model: value, size: nextSize });
+                appendOperationLog({ source: "创作台", message: `已切换模型为 ${value}` });
+              }}
+            />
+            <SelectMenu
+              ariaLabel="尺寸"
+              value={params.size}
+              options={activeModel.sizes.map((size) => ({ value: size, label: size }))}
+              icon={<Frame size={12} />}
+              hideValue
+              triggerClassName="composer-select-trigger"
+              menuClassName="composer-select-menu"
+              onChange={(value) => {
+                onParamsChange({ ...params, size: value });
+                appendOperationLog({ source: "创作台", message: `已切换尺寸为 ${value}` });
+              }}
+            />
+            <SelectMenu
+              ariaLabel="质量"
+              value={params.quality}
+              options={qualityOptions}
+              icon={<Sparkles size={12} />}
+              hideValue
+              triggerClassName="composer-select-trigger"
+              menuClassName="composer-select-menu"
+              onChange={(value) => {
+                onParamsChange({ ...params, quality: value });
+                appendOperationLog({ source: "创作台", message: `已切换质量为 ${value}` });
+              }}
+            />
+          </div>
+
+          <label className="composer-inline-field composer-meta-pill">
+            <input className="composer-inline-input" value={artistName} onChange={(event) => setArtistName(event.target.value)} placeholder="艺名 / 标题" />
+          </label>
+
+          <label className="composer-inline-field composer-slider-field composer-slider-pill-shell">
+            <span>发散 {temperature.toFixed(1)}</span>
+            <input type="range" min={0} max={1.2} step={0.1} value={temperature} onChange={(event) => setTemperature(Number(event.target.value))} />
+          </label>
+
+          <div className="composer-avatar-cluster">
+            <UploadArea title="头像" bucket="avatarImages" assets={avatarImages} onAdd={addImages} onRemove={removeAsset} single />
+          </div>
+
+          <div className="composer-shell-actions composer-control-actions">
+            <button type="button" className="ghost-button composer-icon-button" title="复制提示词" aria-label="复制提示词" onClick={() => void copyGeneratedPrompt()}>
+              <Copy size={12} />
+            </button>
+            <button type="button" className="ghost-button composer-icon-button" title="重置表单" aria-label="重置表单" onClick={resetForm}>
+              <RefreshCw size={12} />
+            </button>
+            <button type="button" className="generate-button composer-submit-button" disabled={!canGenerate} onClick={() => void submitPlaylist()}>
+              {isSubmitting || currentTask?.status === "pending" || currentTask?.status === "running" ? <Loader2 className="spin" size={16} /> : <ImagePlus size={16} />}
+              {isSubmitting || currentTask?.status === "pending" || currentTask?.status === "running" ? "生成中" : "生成"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 
   useEffect(() => {
     const rawConfig = localStorage.getItem(CONFIG_KEY);
@@ -389,7 +501,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
       return;
     }
     try {
-      const result = await downloadImage(displayedImageUrl, selectedTask ? "已选历史结果" : artistName, promptPresetId);
+      const result = await downloadImage(displayedImageUrl, selectedPlaylistTask ? "已选历史结果" : artistName, promptPresetId);
       if (result.saved) {
         appendOperationLog({ source: "创作台", message: "已下载当前封面结果", detail: { path: result.path } });
         showToast({
@@ -417,20 +529,6 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
   return (
     <section className="playlist-workflow editor-home">
       <div className="playlist-main editor-feed">
-        {/*<header className="workspace-head editor-feed-head">
-          <div>
-            <p className="eyebrow">Workspace</p>
-            <h1>歌单封面创作台</h1>
-            <p className="workspace-head-copy">主页面收拢为写提示词、整理歌曲、补素材、看结果四件事，像编辑器一样把注意力留在中间主舞台。</p>
-          </div>
-          <div className="workspace-head-stats">
-            <span className="workflow-stat">模板 {activePresetLabel}</span>
-            <span className="workflow-stat">歌曲 {songCount} 首</span>
-            <span className="workflow-stat">素材 {allUploadedFiles.length} 张</span>
-            <span className="workflow-stat">状态 {renderTaskStatus(displayedTask)}</span>
-          </div>
-        </header>*/}
-
         <div className="editor-stage-grid">
           <section
             className="editor-preview-column"
@@ -441,7 +539,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
                 <>
                   <img src={displayedImageHref} alt="生成的歌单图片" />
                   <div className="result-frame-overlay">
-                    <span>{selectedTask ? "已选结果" : "最新封面"}</span>
+                    <span>{selectedPlaylistTask ? "已选结果" : "最新封面"}</span>
                     <strong>{previewTitle}</strong>
                   </div>
                 </>
@@ -507,122 +605,11 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
             </section>
           </section>
         </div>
+
+        <div className="composer-shell-spacer" aria-hidden="true" />
       </div>
-
-      <section className="composer-shell">
-        <div className="composer-core-grid composer-main-grid">
-          <textarea
-            className="composer-textarea composer-visual-input composer-main-textarea"
-            value={visualPrompt}
-            onChange={(event) => setVisualPrompt(event.target.value)}
-            placeholder="图片提示词"
-          />
-          <textarea
-            className="composer-textarea composer-song-input composer-main-textarea composer-song-priority"
-            value={songList}
-            onChange={(event) => setSongList(event.target.value)}
-            placeholder="歌曲列表"
-          />
-        </div>
-
-        <div className="composer-action-row composer-footer">
-          <div className="composer-footer-left">
-            <div className="composer-footer-group composer-footer-template-group">
-              <button type="button" className="ghost-button composer-icon-button" title="随机模板" aria-label="随机模板" onClick={randomPreset}>
-                <Dice5 size={12} />
-              </button>
-              <SelectMenu
-                ariaLabel="视觉模板"
-                value={promptPresetId}
-                options={visualPrompts.map((preset) => ({ value: preset.id, label: preset.label }))}
-                icon={<Palette size={12} />}
-                triggerClassName="composer-select-trigger composer-template-trigger"
-                menuClassName="composer-select-menu"
-                onChange={applyPreset}
-              />
-            </div>
-            <div className="composer-footer-group composer-footer-model-group">
-              <SelectMenu
-                ariaLabel="模型"
-                value={params.model}
-                options={modelOptions.map((model) => ({ value: model.id, label: model.name }))}
-                icon={<Bot size={12} />}
-                hideValue
-                triggerClassName="composer-select-trigger"
-                menuClassName="composer-select-menu"
-                onChange={(value) => {
-                  const nextModel = modelOptions.find((model) => model.id === value) || modelOptions[0];
-                  const nextSize = nextModel.sizes.includes(params.size) ? params.size : nextModel.sizes[0];
-                  onParamsChange({ ...params, model: value, size: nextSize });
-                  appendOperationLog({ source: "创作台", message: `已切换模型为 ${value}` });
-                }}
-              />
-              <SelectMenu
-                ariaLabel="尺寸"
-                value={params.size}
-                options={activeModel.sizes.map((size) => ({ value: size, label: size }))}
-                icon={<Frame size={12} />}
-                hideValue
-                triggerClassName="composer-select-trigger"
-                menuClassName="composer-select-menu"
-                onChange={(value) => {
-                  onParamsChange({ ...params, size: value });
-                  appendOperationLog({ source: "创作台", message: `已切换尺寸为 ${value}` });
-                }}
-              />
-              <SelectMenu
-                ariaLabel="质量"
-                value={params.quality}
-                options={qualityOptions}
-                icon={<Sparkles size={12} />}
-                hideValue
-                triggerClassName="composer-select-trigger"
-                menuClassName="composer-select-menu"
-                onChange={(value) => {
-                  onParamsChange({ ...params, quality: value });
-                  appendOperationLog({ source: "创作台", message: `已切换质量为 ${value}` });
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="composer-footer-middle">
-            <label className="composer-inline-field composer-footer-field composer-meta-field">
-              <input className="composer-inline-input" value={artistName} onChange={(event) => setArtistName(event.target.value)} placeholder="艺名 / 标题" />
-            </label>
-            {/*<label className="composer-inline-field composer-footer-field composer-meta-field">
-              <input className="composer-inline-input" value={mustHave} onChange={(event) => setMustHave(event.target.value)} placeholder="必须包含" />
-            </label>
-            <label className="composer-inline-field composer-footer-field composer-meta-field">
-              <input className="composer-inline-input" value={avoid} onChange={(event) => setAvoid(event.target.value)} placeholder="避免出现" />
-            </label>*/}
-            <label className="composer-inline-field composer-slider-field composer-footer-field composer-slider-pill">
-              <span>发散 {temperature.toFixed(1)}</span>
-              <input type="range" min={0} max={1.2} step={0.1} value={temperature} onChange={(event) => setTemperature(Number(event.target.value))} />
-            </label>
-          </div>
-
-          <div className="composer-footer-right">
-            <div className="composer-footer-assets">
-              <UploadArea title="参考图" bucket="referenceImages" assets={referenceImages} onAdd={addImages} onRemove={removeAsset} />
-              <UploadArea title="素材图" bucket="materialImages" assets={materialImages} onAdd={addImages} onRemove={removeAsset} />
-              <UploadArea title="头像" bucket="avatarImages" assets={avatarImages} onAdd={addImages} onRemove={removeAsset} single />
-            </div>
-            <div className="composer-footer-actions">
-              <button type="button" className="ghost-button composer-icon-button" title="复制提示词" aria-label="复制提示词" onClick={() => void copyGeneratedPrompt()}>
-                <Copy size={12} />
-              </button>
-              <button type="button" className="ghost-button composer-icon-button" title="重置表单" aria-label="重置表单" onClick={resetForm}>
-                <RefreshCw size={12} />
-              </button>
-              <button type="button" className="generate-button composer-submit-button" disabled={!canGenerate} onClick={() => void submitPlaylist()}>
-                {isSubmitting || currentTask?.status === "pending" || currentTask?.status === "running" ? <Loader2 className="spin" size={16} /> : <ImagePlus size={16} />}
-                {isSubmitting || currentTask?.status === "pending" || currentTask?.status === "running" ? "生成中" : "生成"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 这里必须挂到 body，避免被带 backdrop-filter 的滚动容器重新约束，导致 fixed 看起来像跟着页面走。 */}
+      {typeof document !== "undefined" ? createPortal(composerShell, document.body) : composerShell}
     </section>
   );
 }

@@ -7,7 +7,10 @@ export interface BackendState {
   message: string;
 }
 
-export type WorkspaceMode = "text" | "edit" | "gallery" | "logs" | "settings";
+export type CreationMode = "text" | "edit";
+export type WorkspaceMode = CreationMode;
+export type SettingsSection = "connection" | "output" | "creative" | "advanced";
+export type SidebarView = "gallery" | "status" | SettingsSection | "backend" | "logs";
 export type TaskStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 export type TaskKind = "generations" | "edits";
 export type OperationLogLevel = "info" | "warn" | "error";

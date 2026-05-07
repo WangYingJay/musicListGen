@@ -1,16 +1,14 @@
-import { Copy, Download, ImageIcon, UploadCloud } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Copy, Download, ImageIcon, RefreshCw, Server, UploadCloud } from "lucide-react";
+import { type CSSProperties, type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { setApiBaseUrl as applyApiBaseUrl } from "../api/client";
 import { fetchCapabilities, fetchModels } from "../api/capabilities";
-import { createEdit, createGeneration } from "../api/image";
+import { createEdit } from "../api/image";
 import { fetchTasks } from "../api/tasks";
+import { ChatPlaylistWorkspace } from "../components/chat/ChatPlaylistWorkspace";
+import { ChatSidebar } from "../components/chat/ChatSidebar";
 import { ToastViewport } from "../components/common/ToastViewport";
-import { GallerySidebar } from "../components/gallery/GallerySidebar";
-import { StatusBar } from "../components/layout/StatusBar";
-import { TopBar } from "../components/layout/TopBar";
 import { OperationLogCenter } from "../components/logs/OperationLogCenter";
-import { PlaylistWorkflow } from "../components/playlist/PlaylistWorkflow";
 import { PromptPanel } from "../components/prompt/PromptPanel";
 import { ApiConfigPanel } from "../components/settings/ApiConfigPanel";
 import { useBackendLogs } from "../hooks/useBackendLogs";
@@ -19,9 +17,10 @@ import { useConfigStore } from "../stores/configStore";
 import { useGalleryStore } from "../stores/galleryStore";
 import { useTaskStore } from "../stores/taskStore";
 import { showToast } from "../stores/toastStore";
-import type { GenerateInput, ImageTask, WorkspaceMode } from "../types";
+import type { Capabilities, CreationMode, GenerateInput, ImageTask, SettingsSection, SidebarView, WorkspaceMode } from "../types";
 import { saveImageWithSystemDialog } from "../utils/imageSaver";
 import { appendOperationLog } from "../utils/operationLog";
+import { getCreationModeLabel, getTaskCreationMode } from "../utils/taskGrouping";
 
 const defaultParams: GenerateInput = {
   model: "gpt-image-2",
@@ -33,8 +32,12 @@ const defaultParams: GenerateInput = {
   cfg_scale: 7
 };
 
+type MainView = "workspace" | SidebarView;
+
 export function App() {
   const [mode, setMode] = useState<WorkspaceMode>("text");
+  const [activeView, setActiveView] = useState<MainView>("workspace");
+  const [workspaceResetSignal, setWorkspaceResetSignal] = useState(0);
   const [prompt, setPrompt] = useState("夜晚城市里的独立音乐歌单封面，蓝绿色霓虹反射在雨水路面，电影感构图");
   const [negativePrompt, setNegativePrompt] = useState("低清晰度，变形文字，杂乱边框");
   const [params, setParams] = useState<GenerateInput>(defaultParams);
@@ -147,45 +150,11 @@ export function App() {
 
   const recentResult = useMemo(() => {
     return Object.values(tasks)
-      .filter((task) => task.status === "succeeded" && task.imageUrl)
+      .filter((task) => task.status === "succeeded" && task.imageUrl && getTaskCreationMode(task) === mode)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  }, [tasks]);
+  }, [mode, tasks]);
   const stageCoverUrl = recentResult?.imageUrl ? new URL(recentResult.imageUrl, backend.baseUrl || "http://127.0.0.1:8765").toString() : "";
   const stageStyle = stageCoverUrl ? ({ ["--stage-cover" as string]: `url("${stageCoverUrl}")` } as CSSProperties) : undefined;
-
-  async function submitGeneration() {
-    setIsSubmitting(true);
-    try {
-      const input = { ...params, prompt, negative_prompt: negativePrompt || undefined };
-      const response = await createGeneration(input, effectiveApiKey, upstreamApiBase);
-      addTaskFromResponse(response, input);
-      appendOperationLog({
-        source: "修图",
-        message: "已提交普通生成任务",
-        detail: { model: input.model, size: input.size }
-      });
-      showToast({
-        tone: "success",
-        title: "生成任务已提交",
-        description: `${input.model} · ${input.size}`
-      });
-      setMode("text");
-    } catch (error) {
-      appendOperationLog({
-        source: "修图",
-        level: "error",
-        message: "普通生成任务提交失败",
-        detail: error instanceof Error ? error.message : String(error)
-      });
-      showToast({
-        tone: "error",
-        title: "普通生成任务提交失败",
-        description: error instanceof Error ? error.message : String(error)
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   async function submitEdit() {
     if (!referenceFile) {
@@ -237,17 +206,26 @@ export function App() {
   }
 
   return (
-    <div className={`app-shell mode-${mode}`}>
-      <TopBar mode={mode} onModeChange={setMode} galleryCount={galleryItems.length} queueCount={activeTaskIds.length} backendStatus={backend.status} />
-      <main className="app-grid">
-        <GallerySidebar />
+    <div className={`app-shell workspace-shell mode-${mode}`}>
+      <main className="workspace-layout">
+        <ChatSidebar
+          creationMode={mode}
+          activeView={activeView}
+          onCreationModeChange={(nextMode) => {
+            setMode(nextMode);
+            // 模式切换后优先回到首页创作台，避免用户误停留在上一模式的历史详情里。
+            setActiveView("workspace");
+          }}
+          onViewChange={(view) => setActiveView(view)}
+          onNewSession={() => setWorkspaceResetSignal((value) => value + 1)}
+        />
 
-        <section className="center-stage" style={stageStyle}>
-          {mode === "text" && (
-            <PlaylistWorkflow params={params} onParamsChange={setParams} />
+        <section className="workspace-main" style={stageStyle}>
+          {activeView === "workspace" && mode === "text" && (
+            <ChatPlaylistWorkspace params={params} onParamsChange={setParams} resetSignal={workspaceResetSignal} />
           )}
 
-          {mode === "edit" && (
+          {activeView === "workspace" && mode === "edit" && (
             <EditWorkspace
               prompt={prompt}
               negativePrompt={negativePrompt}
@@ -267,18 +245,32 @@ export function App() {
             />
           )}
 
-          {mode === "gallery" && <GalleryOverview />}
-          {mode === "logs" && <OperationLogCenter />}
-          {mode === "settings" && <ApiConfigPanel models={models} params={params} onParamsChange={setParams} onRestartBackend={restartBackend} />}
+          {activeView === "gallery" && <GalleryOverview creationMode={mode} />}
+          {activeView === "status" && <TaskStatusBoard creationMode={mode} />}
+          {activeView === "backend" && (
+            <BackendStatusPanel
+              backend={backend}
+              capabilities={capabilities}
+              mode={mode}
+              queueCount={activeTaskIds.length}
+              galleryCount={galleryItems.length}
+              useServerKey={Boolean(capabilities?.server_key_configured) && useServerKey}
+              hasLocalKey={Boolean(apiKey.trim())}
+              onRestartBackend={restartBackend}
+            />
+          )}
+          {activeView === "logs" && <OperationLogCenter />}
+          {isSettingsView(activeView) && (
+            <ApiConfigPanel
+              models={models}
+              params={params}
+              onParamsChange={setParams}
+              onRestartBackend={restartBackend}
+              initialSection={activeView}
+            />
+          )}
         </section>
       </main>
-      <StatusBar
-        backend={backend}
-        taskCount={galleryItems.length}
-        queueCount={activeTaskIds.length}
-        useServerKey={Boolean(capabilities?.server_key_configured) && useServerKey}
-        hasLocalKey={Boolean(apiKey.trim())}
-      />
       <ToastViewport />
     </div>
   );
@@ -286,10 +278,7 @@ export function App() {
 
 function renderModeLabel(mode: WorkspaceMode): string {
   if (mode === "text") return "歌单生成";
-  if (mode === "edit") return "图生图";
-  if (mode === "gallery") return "画廊";
-  if (mode === "logs") return "日志";
-  return "设置";
+  return "图生图";
 }
 
 function ResultPreview({ task }: { task?: ImageTask }) {
@@ -366,44 +355,90 @@ function EditWorkspace({
   onReferenceChange,
   onSubmit
 }: EditWorkspaceProps) {
+  const [referencePreviewUrl, setReferencePreviewUrl] = useState("");
+
+  useEffect(() => {
+    if (!referenceFile) {
+      setReferencePreviewUrl("");
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(referenceFile);
+    setReferencePreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [referenceFile]);
+
+  function handleReferenceChange(event: ChangeEvent<HTMLInputElement>) {
+    onReferenceChange(event.target.files?.[0] ?? null);
+    event.target.value = "";
+  }
+
   return (
-    <section className="workspace-section edit-workspace">
-      <div className="section-header">
+    <section className="view-shell edit-workspace-shell">
+      <header className="view-header">
         <div>
           <p className="eyebrow">Image Edit</p>
           <h1>参考图重绘</h1>
+          <span>上传一张参考图，再用简短描述告诉系统你想保留什么、改变什么。</span>
         </div>
-      </div>
+      </header>
 
-      <label className="drop-zone">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(event) => onReferenceChange(event.target.files?.[0] ?? null)}
+      <div className="view-grid two-columns">
+        <section className="surface-card">
+          <div className="surface-card-head">
+            <div>
+              <h2>参考图</h2>
+              <p>建议先放主视觉，再在下方补充你想优化的方向。</p>
+            </div>
+          </div>
+
+          <label className={referencePreviewUrl ? "drop-zone has-preview" : "drop-zone"}>
+            <input type="file" accept="image/*" onChange={handleReferenceChange} />
+            {referencePreviewUrl ? (
+              <>
+                <img className="drop-zone-preview-image" src={referencePreviewUrl} alt="参考图预览" />
+                <div className="drop-zone-preview-badge">
+                  <span>参考图预览</span>
+                  <strong>点击重新选择</strong>
+                </div>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={28} />
+                <span>拖入或选择参考图</span>
+              </>
+            )}
+          </label>
+        </section>
+
+        <PromptPanel
+          prompt={prompt}
+          negativePrompt={negativePrompt}
+          isSubmitting={isSubmitting}
+          onPromptChange={onPromptChange}
+          onNegativePromptChange={onNegativePromptChange}
+          onGenerate={onSubmit}
         />
-        <UploadCloud size={28} />
-        <span>{referenceFile ? referenceFile.name : "拖入或选择参考图"}</span>
-      </label>
-
-      <PromptPanel
-        prompt={prompt}
-        negativePrompt={negativePrompt}
-        isSubmitting={isSubmitting}
-        onPromptChange={onPromptChange}
-        onNegativePromptChange={onNegativePromptChange}
-        onGenerate={onSubmit}
-      />
+      </div>
     </section>
   );
 }
 
-function GalleryOverview() {
+function GalleryOverview({ creationMode }: { creationMode: CreationMode }) {
   const items = useGalleryStore((state) => state.items);
   const selectedTaskId = useTaskStore((state) => state.selectedTaskId);
   const selectTask = useTaskStore((state) => state.selectTask);
   const tasksById = useTaskStore((state) => state.tasks);
   const backendBase = useConfigStore((state) => state.backend.baseUrl || "http://127.0.0.1:8765");
-  const selectedItem = items.find((item) => item.taskId === selectedTaskId) || items[0];
+  // 画廊页需要和左侧筛选一致，避免歌单和图生图的历史结果混在一起。
+  const filteredItems = useMemo(
+    () =>
+      items.filter((item) => {
+        const task = tasksById[item.taskId];
+        return task ? getTaskCreationMode(task) === creationMode : false;
+      }),
+    [creationMode, items, tasksById]
+  );
+  const selectedItem = filteredItems.find((item) => item.taskId === selectedTaskId) || filteredItems[0];
   const selectedTask = selectedItem ? tasksById[selectedItem.taskId] : undefined;
   const previewUrl = selectedItem ? new URL(selectedItem.imageUrl, backendBase).toString() : "";
 
@@ -458,9 +493,26 @@ function GalleryOverview() {
   }
 
   return (
-    <section className="gallery-overview-shell">
-      <div className="overview-grid">
-        {items.map((item) => {
+    <section className="view-shell gallery-overview-shell">
+      <header className="view-header">
+        <div>
+          <p className="eyebrow">Gallery</p>
+          <h1>{getCreationModeLabel(creationMode)}作品库</h1>
+          <span>浏览本地保存的生成结果，快速查看提示词、状态和输出规格。</span>
+        </div>
+      </header>
+
+      <div className="view-grid gallery-view-grid">
+        <div className="surface-card">
+          <div className="surface-card-head">
+            <div>
+              <h2>全部结果</h2>
+              <p>当前模式下共 {filteredItems.length} 张作品。</p>
+            </div>
+          </div>
+
+          <div className="overview-grid">
+        {filteredItems.map((item) => {
           const active = selectedItem?.taskId === item.taskId;
           return (
             <button
@@ -480,10 +532,11 @@ function GalleryOverview() {
             </button>
           );
         })}
-        {items.length === 0 && <p className="empty-state">暂无画廊记录</p>}
-      </div>
+        {filteredItems.length === 0 && <p className="empty-state">当前模式下暂无画廊记录</p>}
+          </div>
+        </div>
 
-      <aside className="gallery-detail-panel">
+      <aside className="gallery-detail-panel surface-card">
         {selectedItem ? (
           <>
             <div className="gallery-detail-preview">
@@ -521,6 +574,7 @@ function GalleryOverview() {
           <p className="empty-state">点击左侧缩略图后，这里会显示图片详情与保存入口</p>
         )}
       </aside>
+      </div>
     </section>
   );
 }
@@ -535,29 +589,146 @@ function formatLocalTime(value: string): string {
   });
 }
 
-function TaskCenter() {
-  const tasks = Object.values(useTaskStore((state) => state.tasks)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+function TaskStatusBoard({ creationMode }: { creationMode: CreationMode }) {
+  const tasksById = useTaskStore((state) => state.tasks);
+  const tasks = useMemo(
+    () =>
+      Object.values(tasksById)
+        .filter((task) => getTaskCreationMode(task) === creationMode)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [creationMode, tasksById]
+  );
+  const stats = useMemo(
+    () => ({
+      total: tasks.length,
+      running: tasks.filter((task) => task.status === "pending" || task.status === "running").length,
+      succeeded: tasks.filter((task) => task.status === "succeeded").length,
+      failed: tasks.filter((task) => task.status === "failed").length
+    }),
+    [tasks]
+  );
 
   return (
-    <section className="task-center">
-      <div className="section-header">
+    <section className="view-shell task-center">
+      <header className="view-header">
         <div>
-          <p className="eyebrow">Tasks</p>
-          <h1>任务明细</h1>
+          <p className="eyebrow">Status</p>
+          <h1>{getCreationModeLabel(creationMode)}状态</h1>
+          <span>集中查看当前模式下的历史任务、运行进度和异常信息。</span>
         </div>
+      </header>
+      <div className="log-summary">
+        <span className="workflow-stat">
+          <Activity size={14} />
+          总任务 {stats.total}
+        </span>
+        <span className="workflow-stat">运行中 {stats.running}</span>
+        <span className="workflow-stat">成功 {stats.succeeded}</span>
+        <span className="workflow-stat">失败 {stats.failed}</span>
       </div>
-      {tasks.map((task) => (
-        <article className="task-detail-row" key={task.task_id}>
-          <div>
-            <strong>{task.prompt}</strong>
-            <span>{task.task_id}</span>
-          </div>
-          <span className={`status-pill ${task.status}`}>{task.status}</span>
-          <span>{task.progress}%</span>
-          <p>{task.error || task.message}</p>
-        </article>
-      ))}
-      {tasks.length === 0 && <p className="empty-state">暂无任务</p>}
+      <div className="task-status-list">
+        {tasks.map((task) => (
+          <article className="task-detail-row" key={task.task_id}>
+            <div>
+              <strong>{task.prompt}</strong>
+              <span>{task.task_id}</span>
+            </div>
+            <span className={`status-pill ${task.status}`}>{task.status}</span>
+            <span>{task.progress}%</span>
+            <p>{task.error || task.message}</p>
+          </article>
+        ))}
+      </div>
+      {tasks.length === 0 && <p className="empty-state">当前模式下暂无任务</p>}
     </section>
   );
+}
+
+interface BackendStatusPanelProps {
+  backend: ReturnType<typeof useConfigStore.getState>["backend"];
+  capabilities: Capabilities | null;
+  mode: CreationMode;
+  queueCount: number;
+  galleryCount: number;
+  useServerKey: boolean;
+  hasLocalKey: boolean;
+  onRestartBackend: () => void;
+}
+
+function BackendStatusPanel({
+  backend,
+  capabilities,
+  mode,
+  queueCount,
+  galleryCount,
+  useServerKey,
+  hasLocalKey,
+  onRestartBackend
+}: BackendStatusPanelProps) {
+  return (
+    <section className="view-shell task-center backend-status-panel">
+      <header className="view-header with-action">
+        <div>
+          <p className="eyebrow">Backend</p>
+          <h1>后端状态</h1>
+          <span>查看本地 sidecar 的运行情况、鉴权策略和能力清单。</span>
+        </div>
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={() => {
+            appendOperationLog({ source: "后端", message: "请求重启本地后端" });
+            void onRestartBackend();
+          }}
+        >
+          <RefreshCw size={14} />
+          重启后端
+        </button>
+      </header>
+
+      <div className="log-summary">
+        <span className={`status-pill ${backend.status}`}>
+          <Server size={13} />
+          {backend.status === "online" ? "后端在线" : backend.status === "starting" ? "后端启动中" : "后端离线"}
+        </span>
+        <span className="workflow-stat">{getCreationModeLabel(mode)}</span>
+        <span className="workflow-stat">队列 {queueCount}</span>
+        <span className="workflow-stat">画廊 {galleryCount}</span>
+      </div>
+
+      <div className="settings-grid backend-status-grid">
+        <section className="settings-section">
+          <div className="settings-section-head">
+            <h3>连接摘要</h3>
+            <p>这里集中展示当前桌面端后端的运行状态和基础连接信息。</p>
+          </div>
+          <div className="gallery-detail-meta">
+            <span>状态 {backend.status}</span>
+            <span>端口 {backend.port ?? "未分配"}</span>
+            <span>地址 {backend.baseUrl || "未连接"}</span>
+            <span>消息 {backend.message}</span>
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-head">
+            <h3>能力与鉴权</h3>
+            <p>用来确认当前实例支持哪些能力，以及请求时会采用哪种 Key 策略。</p>
+          </div>
+          <div className="gallery-detail-meta">
+            <span>服务端 Key {capabilities?.server_key_configured ? "已配置" : "未配置"}</span>
+            <span>当前策略 {useServerKey ? "服务端默认" : hasLocalKey ? "本地 Key" : "未携带 Key"}</span>
+            <span>支持生图 {capabilities?.supports_generations ? "是" : "否"}</span>
+            <span>支持图生图 {capabilities?.supports_edits ? "是" : "否"}</span>
+            <span>支持模型列表 {capabilities?.supports_models ? "是" : "否"}</span>
+            <span>默认上游 {capabilities?.default_api_base || "未返回"}</span>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function isSettingsView(view: MainView): view is SettingsSection {
+  return view === "connection" || view === "output" || view === "creative" || view === "advanced";
 }

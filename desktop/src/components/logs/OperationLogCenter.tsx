@@ -30,11 +30,12 @@ export function OperationLogCenter() {
   );
 
   return (
-    <section className="log-center">
-      <div className="panel-heading">
+    <section className="view-shell log-center">
+      <header className="view-header with-action">
         <div>
           <p className="eyebrow">Logs</p>
           <h1>操作日志</h1>
+          <span>把任务流转、设置修改和错误提示集中收在这里，方便排查和回看。</span>
         </div>
         <div className="workflow-actions">
           <button
@@ -59,7 +60,7 @@ export function OperationLogCenter() {
             清空日志
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="log-summary">
         <span className="workflow-stat">

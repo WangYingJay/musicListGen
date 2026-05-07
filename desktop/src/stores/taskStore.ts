@@ -69,7 +69,7 @@ export const useTaskStore = create<TaskState>((set) => ({
         message: task.message,
         error: task.error,
         result: task.result,
-        imageUrl: task.result?.data?.[0]?.url,
+        imageUrl: resolveTaskImageUrl(task),
         started_at: task.started_at,
         completed_at: task.completed_at
       };
@@ -179,7 +179,7 @@ function buildImageTask(task: TaskResponse, input: GenerateInput): ImageTask {
     message: task.message,
     error: task.error,
     result: task.result,
-    imageUrl: task.result?.data?.[0]?.url,
+    imageUrl: resolveTaskImageUrl(task),
     poll_url: task.poll_url,
     created_at: task.created_at,
     started_at: task.started_at,
@@ -209,4 +209,67 @@ function readNumber(value: unknown): number | undefined {
 
 function readQuality(value: unknown): GenerateInput["quality"] | undefined {
   return value === "auto" || value === "standard" || value === "high" ? value : undefined;
+}
+
+function resolveTaskImageUrl(task: TaskResponse): string | undefined {
+  const result = task.result;
+  if (!result) {
+    return undefined;
+  }
+
+  const directUrl = readString(result.data?.[0]?.url) || readString(result.url) || readString(result.image_url);
+  if (directUrl) {
+    return directUrl;
+  }
+
+  const nestedUrl = findNestedImageUrl(result);
+  if (nestedUrl) {
+    return nestedUrl;
+  }
+
+  const base64Value = readString(result.data?.[0]?.b64_json);
+  if (base64Value) {
+    // 兼容直接返回 base64 的上游或旧后端；当前后端成功时会优先返回本地 /api/tasks/.../image。
+    return base64Value.startsWith("data:") ? base64Value : `data:image/png;base64,${base64Value}`;
+  }
+
+  return undefined;
+}
+
+function findNestedImageUrl(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/api/") || value.startsWith("data:image/")
+      ? value
+      : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = findNestedImageUrl(item);
+      if (nested) {
+        return nested;
+      }
+    }
+    return undefined;
+  }
+
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["url", "image_url", "image"]) {
+    const nested = findNestedImageUrl(record[key]);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  for (const item of Object.values(record)) {
+    const nested = findNestedImageUrl(item);
+    if (nested) {
+      return nested;
+    }
+  }
+  return undefined;
 }

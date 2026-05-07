@@ -1,5 +1,5 @@
-import { Activity, Copy, Download, ImageIcon, RefreshCw, Server, UploadCloud } from "lucide-react";
-import { type CSSProperties, type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Copy, Download, ImageIcon, Images, RefreshCw, Search, Server, UploadCloud } from "lucide-react";
+import { type CSSProperties, type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { setApiBaseUrl as applyApiBaseUrl } from "../api/client";
 import { fetchCapabilities, fetchModels } from "../api/capabilities";
@@ -17,7 +17,7 @@ import { useConfigStore } from "../stores/configStore";
 import { useGalleryStore } from "../stores/galleryStore";
 import { useTaskStore } from "../stores/taskStore";
 import { showToast } from "../stores/toastStore";
-import type { Capabilities, CreationMode, GenerateInput, ImageTask, SettingsSection, SidebarView, WorkspaceMode } from "../types";
+import type { Capabilities, CreationMode, GalleryItem, GenerateInput, ImageTask, SettingsSection, SidebarView, WorkspaceMode } from "../types";
 import { saveImageWithSystemDialog } from "../utils/imageSaver";
 import { appendOperationLog } from "../utils/operationLog";
 import { getCreationModeLabel, getTaskCreationMode } from "../utils/taskGrouping";
@@ -43,6 +43,7 @@ export function App() {
   const [params, setParams] = useState<GenerateInput>(defaultParams);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const workspaceMainRef = useRef<HTMLElement | null>(null);
 
   const backend = useConfigStore((state) => state.backend);
   const apiBaseUrl = useConfigStore((state) => state.apiBaseUrl);
@@ -64,6 +65,24 @@ export function App() {
   const hydrateGalleryFromTasks = useGalleryStore((state) => state.hydrateFromTasks);
   const galleryItems = useGalleryStore((state) => state.items);
   const previousModeRef = useRef<WorkspaceMode | null>(null);
+  const previousWorkspacePageRef = useRef<{ view: MainView; mode: WorkspaceMode } | null>(null);
+  const scrollWorkspaceToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const scrollToBottom = () => {
+      const node = workspaceMainRef.current;
+      if (!node) {
+        return;
+      }
+      node.scrollTo({ top: node.scrollHeight, behavior });
+    };
+    // 页面切换后会先触发一次布局更新，连续两帧滚动可以兜住内容高度刚变化的情况。
+    window.requestAnimationFrame(() => {
+      scrollToBottom();
+      window.requestAnimationFrame(scrollToBottom);
+    });
+  }, []);
   const effectiveApiKey = useMemo(() => {
     const overrideKey = temporaryApiKey.trim();
     if (overrideKey) {
@@ -76,6 +95,16 @@ export function App() {
 
   useTaskPolling();
   useBackendLogs();
+
+  useEffect(() => {
+    const previousPage = previousWorkspacePageRef.current;
+    const enteredWorkspace = activeView === "workspace" && previousPage && previousPage.view !== "workspace";
+    const switchedWorkspaceMode = activeView === "workspace" && previousPage?.view === "workspace" && previousPage.mode !== mode;
+    if (enteredWorkspace || switchedWorkspaceMode) {
+      scrollWorkspaceToBottom("auto");
+    }
+    previousWorkspacePageRef.current = { view: activeView, mode };
+  }, [activeView, mode, scrollWorkspaceToBottom]);
 
   useEffect(() => {
     if (apiBaseUrl) {
@@ -205,24 +234,40 @@ export function App() {
     }
   }
 
+  const handleCreationModeChange = useCallback(
+    (nextMode: WorkspaceMode) => {
+      setMode(nextMode);
+      // 模式切换后优先回到首页创作台，避免用户误停留在上一模式的历史详情里。
+      setActiveView("workspace");
+    },
+    []
+  );
+
+  const handleViewChange = useCallback(
+    (view: MainView) => {
+      setActiveView(view);
+    },
+    []
+  );
+
   return (
     <div className={`app-shell workspace-shell mode-${mode}`}>
       <main className="workspace-layout">
         <ChatSidebar
           creationMode={mode}
           activeView={activeView}
-          onCreationModeChange={(nextMode) => {
-            setMode(nextMode);
-            // 模式切换后优先回到首页创作台，避免用户误停留在上一模式的历史详情里。
-            setActiveView("workspace");
-          }}
-          onViewChange={(view) => setActiveView(view)}
+          onCreationModeChange={handleCreationModeChange}
+          onViewChange={handleViewChange}
           onNewSession={() => setWorkspaceResetSignal((value) => value + 1)}
         />
 
-        <section className="workspace-main" style={stageStyle}>
+        <section ref={workspaceMainRef} className="workspace-main" style={stageStyle}>
           {activeView === "workspace" && mode === "text" && (
-            <ChatPlaylistWorkspace params={params} onParamsChange={setParams} resetSignal={workspaceResetSignal} />
+            <ChatPlaylistWorkspace
+              params={params}
+              onParamsChange={setParams}
+              resetSignal={workspaceResetSignal}
+            />
           )}
 
           {activeView === "workspace" && mode === "edit" && (
@@ -230,6 +275,7 @@ export function App() {
               prompt={prompt}
               negativePrompt={negativePrompt}
               referenceFile={referenceFile}
+              resultTask={recentResult}
               isSubmitting={isSubmitting}
               onPromptChange={setPrompt}
               onNegativePromptChange={setNegativePrompt}
@@ -338,6 +384,7 @@ interface EditWorkspaceProps {
   prompt: string;
   negativePrompt: string;
   referenceFile: File | null;
+  resultTask?: ImageTask;
   isSubmitting: boolean;
   onPromptChange: (value: string) => void;
   onNegativePromptChange: (value: string) => void;
@@ -349,6 +396,7 @@ function EditWorkspace({
   prompt,
   negativePrompt,
   referenceFile,
+  resultTask,
   isSubmitting,
   onPromptChange,
   onNegativePromptChange,
@@ -398,7 +446,12 @@ function EditWorkspace({
                 <img className="drop-zone-preview-image" src={referencePreviewUrl} alt="参考图预览" />
                 <div className="drop-zone-preview-badge">
                   <span>参考图预览</span>
-                  <strong>点击重新选择</strong>
+                  <strong>{referenceFile?.name}</strong>
+                  <small>
+                    {formatFileSize(referenceFile?.size ?? 0)}
+                    {referenceFile?.type ? ` · ${formatImageType(referenceFile.type)}` : ""}
+                  </small>
+                  <em>点击重新选择</em>
                 </div>
               </>
             ) : (
@@ -419,6 +472,10 @@ function EditWorkspace({
           onGenerate={onSubmit}
         />
       </div>
+
+      <div className="edit-workspace-result">
+        <ResultPreview task={resultTask} />
+      </div>
     </section>
   );
 }
@@ -429,18 +486,39 @@ function GalleryOverview({ creationMode }: { creationMode: CreationMode }) {
   const selectTask = useTaskStore((state) => state.selectTask);
   const tasksById = useTaskStore((state) => state.tasks);
   const backendBase = useConfigStore((state) => state.backend.baseUrl || "http://127.0.0.1:8765");
-  // 画廊页需要和左侧筛选一致，避免歌单和图生图的历史结果混在一起。
-  const filteredItems = useMemo(
-    () =>
-      items.filter((item) => {
-        const task = tasksById[item.taskId];
-        return task ? getTaskCreationMode(task) === creationMode : false;
-      }),
-    [creationMode, items, tasksById]
-  );
+  const galleryByTaskId = useMemo(() => new Map(items.map((item) => [item.taskId, item])), [items]);
+  // 作品库不能只依赖内存画廊列表；历史任务恢复时用成功任务兜底重建，避免页面看起来“作品都没了”。
+  const filteredItems = useMemo(() => {
+    const merged = Object.values(tasksById)
+      .filter((task) => task.status === "succeeded" && task.imageUrl && !task.galleryHidden && getTaskCreationMode(task) === creationMode)
+      .map((task) => galleryByTaskId.get(task.task_id) || createGalleryItemFromTask(task))
+      .filter((item): item is GalleryItem => Boolean(item))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      if (seen.has(item.taskId)) {
+        return false;
+      }
+      seen.add(item.taskId);
+      return true;
+    });
+  }, [creationMode, galleryByTaskId, tasksById]);
   const selectedItem = filteredItems.find((item) => item.taskId === selectedTaskId) || filteredItems[0];
   const selectedTask = selectedItem ? tasksById[selectedItem.taskId] : undefined;
   const previewUrl = selectedItem ? new URL(selectedItem.imageUrl, backendBase).toString() : "";
+  const succeededCount = filteredItems.length;
+  const runningCount = useMemo(
+    () =>
+      Object.values(tasksById).filter(
+        (task) => getTaskCreationMode(task) === creationMode && (task.status === "pending" || task.status === "running")
+      ).length,
+    [creationMode, tasksById]
+  );
+  const failedCount = useMemo(
+    () => Object.values(tasksById).filter((task) => getTaskCreationMode(task) === creationMode && task.status === "failed").length,
+    [creationMode, tasksById]
+  );
 
   async function copyPrompt() {
     if (!selectedItem?.prompt) {
@@ -493,88 +571,96 @@ function GalleryOverview({ creationMode }: { creationMode: CreationMode }) {
   }
 
   return (
-    <section className="view-shell gallery-overview-shell">
-      <header className="view-header">
+    <section className="gallery-workspace">
+      <header className="gallery-workspace-header">
         <div>
           <p className="eyebrow">Gallery</p>
           <h1>{getCreationModeLabel(creationMode)}作品库</h1>
-          <span>浏览本地保存的生成结果，快速查看提示词、状态和输出规格。</span>
+          <span>按当前模式整理本地生成结果，任务恢复后也会从成功记录里重建列表。</span>
+        </div>
+        <div className="gallery-stat-row">
+          <span><Images size={14} />作品 {succeededCount}</span>
+          <span>运行中 {runningCount}</span>
+          <span>失败 {failedCount}</span>
         </div>
       </header>
 
-      <div className="view-grid gallery-view-grid">
-        <div className="surface-card">
-          <div className="surface-card-head">
-            <div>
-              <h2>全部结果</h2>
-              <p>当前模式下共 {filteredItems.length} 张作品。</p>
-            </div>
-          </div>
-
-          <div className="overview-grid">
-        {filteredItems.map((item) => {
-          const active = selectedItem?.taskId === item.taskId;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={active ? "overview-tile active" : "overview-tile"}
-              onClick={() => {
-                selectTask(item.taskId);
-                appendOperationLog({ source: "画廊", message: `已查看画廊详情 ${item.taskId}` });
-              }}
-            >
-              <img src={new URL(item.imageUrl, backendBase).toString()} alt={item.prompt} />
-              <div>
-                <strong>{item.model}</strong>
-                <span>{item.size}</span>
-              </div>
-            </button>
-          );
-        })}
-        {filteredItems.length === 0 && <p className="empty-state">当前模式下暂无画廊记录</p>}
-          </div>
+      {filteredItems.length === 0 ? (
+        <div className="gallery-empty-panel">
+          <Images size={36} />
+          <strong>当前模式还没有可展示作品</strong>
+          <span>生成成功后的图片会自动出现在这里；如果任务仍在进行，可以先查看任务状态。</span>
         </div>
+      ) : (
+        <div className="gallery-redesign-grid">
+          <section className="gallery-browser-panel">
+            <div className="gallery-browser-head">
+              <div className="gallery-search-shell">
+                <Search size={15} />
+                <span>全部结果</span>
+              </div>
+              <strong>{filteredItems.length}</strong>
+            </div>
 
-      <aside className="gallery-detail-panel surface-card">
-        {selectedItem ? (
-          <>
-            <div className="gallery-detail-preview">
-              <img src={previewUrl} alt={selectedItem.prompt} />
+            <div className="gallery-list-grid">
+              {filteredItems.map((item) => {
+                const active = selectedItem?.taskId === item.taskId;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={active ? "gallery-result-card active" : "gallery-result-card"}
+                    onClick={() => {
+                      selectTask(item.taskId);
+                      appendOperationLog({ source: "画廊", message: `已查看画廊详情 ${item.taskId}` });
+                    }}
+                  >
+                    <img src={new URL(item.imageUrl, backendBase).toString()} alt={item.prompt} />
+                    <span>
+                      <strong>{item.model}</strong>
+                      <small>{item.size} · {formatLocalTime(item.createdAt)}</small>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="gallery-detail-copy">
-              <div className="section-header">
-                <div>
-                  <p className="eyebrow">Gallery Detail</p>
-                  <h1>图片详情</h1>
+          </section>
+
+          <aside className="gallery-preview-panel">
+            {selectedItem ? (
+              <>
+                <div className="gallery-preview-stage">
+                  <img src={previewUrl} alt={selectedItem.prompt} />
                 </div>
-              </div>
-              <div className="gallery-detail-meta">
-                <span>模型 {selectedItem.model}</span>
-                <span>尺寸 {selectedItem.size}</span>
-                <span>任务 {selectedItem.taskId}</span>
-                <span>时间 {formatLocalTime(selectedItem.createdAt)}</span>
-                <span>状态 {selectedTask?.status || "succeeded"}</span>
-              </div>
-              <p className="gallery-detail-message">{selectedTask?.message || "这张结果已经持久化保存到本地任务库中。"}</p>
-              <pre className="prompt-preview-box">{selectedItem.prompt || "没有可展示的提示词"}</pre>
-              <div className="workflow-actions result-column-actions">
-                <button type="button" className="ghost-button" onClick={() => void copyPrompt()}>
-                  <Copy size={14} />
-                  复制提示词
-                </button>
-                <button type="button" className="ghost-button" onClick={() => void saveCurrentImage()}>
-                  <Download size={14} />
-                  保存图片
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <p className="empty-state">点击左侧缩略图后，这里会显示图片详情与保存入口</p>
-        )}
-      </aside>
-      </div>
+                <div className="gallery-preview-copy">
+                  <div>
+                    <p className="eyebrow">Selected</p>
+                    <h2>图片详情</h2>
+                  </div>
+                  <div className="gallery-detail-meta">
+                    <span>模型 {selectedItem.model}</span>
+                    <span>尺寸 {selectedItem.size}</span>
+                    <span>状态 {selectedTask?.status || "succeeded"}</span>
+                    <span>时间 {formatLocalTime(selectedItem.createdAt)}</span>
+                  </div>
+                  <p className="gallery-detail-message">{selectedTask?.message || "这张结果已经保存到本地任务库中。"}</p>
+                  <pre className="prompt-preview-box">{selectedItem.prompt || "没有可展示的提示词"}</pre>
+                  <div className="workflow-actions result-column-actions">
+                    <button type="button" className="ghost-button" onClick={() => void copyPrompt()}>
+                      <Copy size={14} />
+                      复制提示词
+                    </button>
+                    <button type="button" className="ghost-button" onClick={() => void saveCurrentImage()}>
+                      <Download size={14} />
+                      保存图片
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </aside>
+        </div>
+      )}
     </section>
   );
 }
@@ -587,6 +673,39 @@ function formatLocalTime(value: string): string {
   return new Date(timestamp).toLocaleString("zh-CN", {
     hour12: false
   });
+}
+
+function createGalleryItemFromTask(task: ImageTask): GalleryItem | null {
+  if (!task.imageUrl) {
+    return null;
+  }
+  const params = task.params as Record<string, unknown>;
+  return {
+    id: task.task_id,
+    taskId: task.task_id,
+    imageUrl: task.imageUrl,
+    prompt: task.prompt,
+    negativePrompt: task.negativePrompt,
+    model: String(params.model || "gpt-image-2"),
+    size: String(params.size || "1024x1024"),
+    seed: typeof params.seed === "number" ? params.seed : undefined,
+    createdAt: task.completed_at || task.created_at,
+    metadata: params
+  };
+}
+
+function formatFileSize(size: number): string {
+  if (!Number.isFinite(size) || size <= 0) {
+    return "未知大小";
+  }
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatImageType(type: string): string {
+  return type.replace(/^image\//, "").toUpperCase();
 }
 
 function TaskStatusBoard({ creationMode }: { creationMode: CreationMode }) {

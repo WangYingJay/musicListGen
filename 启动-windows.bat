@@ -1,5 +1,6 @@
 @echo off
 setlocal
+chcp 65001 >nul
 
 cd /d "%~dp0"
 
@@ -53,7 +54,7 @@ if errorlevel 1 (
 )
 
 echo 安装/更新前端依赖
-npm install
+call npm install
 if errorlevel 1 (
   echo 启动失败：前端依赖安装失败
   pause
@@ -61,5 +62,5 @@ if errorlevel 1 (
 )
 
 echo 启动桌面应用
-npm run dev
+call npm run dev
 pause

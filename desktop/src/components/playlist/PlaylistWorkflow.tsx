@@ -579,7 +579,7 @@ export function PlaylistWorkflow({ params, onParamsChange }: PlaylistWorkflowPro
               <p className="editor-result-message">{displayedTask?.message || "当前还没有任务输出，先在下方整理提示词和素材即可。"}</p>
 
               <div className="workflow-actions result-column-actions">
-                <button type="button" className="ghost-button" onClick={saveConfig}>
+                <button type="button" className="ghost-button" onClick={() => saveConfig()}>
                   <Save size={14} />
                   保存草稿
                 </button>

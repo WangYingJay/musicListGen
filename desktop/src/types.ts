@@ -41,7 +41,10 @@ export interface ImageTask {
   imageUrl?: string;
   error?: string | null;
   result?: {
-    data?: Array<{ url: string }>;
+    data?: Array<{ url?: string; b64_json?: string }>;
+    url?: string;
+    image_url?: string;
+    output?: unknown;
   } | null;
   poll_url?: string;
   created_at: string;
@@ -58,7 +61,10 @@ export interface TaskResponse {
   message: string;
   error?: string | null;
   result?: {
-    data?: Array<{ url: string }>;
+    data?: Array<{ url?: string; b64_json?: string }>;
+    url?: string;
+    image_url?: string;
+    output?: unknown;
   } | null;
   request?: Record<string, unknown> | null;
   gallery_hidden?: boolean;

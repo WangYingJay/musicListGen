@@ -10,6 +10,7 @@ const PRELOAD_PATH = path.join(__dirname, "preload.cjs");
 const RENDERER_DEV_URL = "http://127.0.0.1:5173";
 const RENDERER_DIST_INDEX = path.join(APP_ROOT, "desktop", "dist", "index.html");
 const WINDOW_ICON = path.join(APP_ROOT, "logo.ico");
+const STARTUP_LOG_PATH = path.join(APP_ROOT, "data", "startup.log");
 const DEFAULT_BACKEND_PORT = Number(process.env.MUSIC_LIST_GEN_BACKEND_PORT || 8765);
 const BACKEND_HOST = "127.0.0.1";
 const isDev = process.argv.includes("--dev") || !app.isPackaged;
@@ -35,6 +36,8 @@ if (shouldDisableHardwareAcceleration) {
 }
 
 app.whenReady().then(bootstrap).catch(handleBootstrapError);
+process.on("uncaughtException", handleBootstrapError);
+process.on("unhandledRejection", handleBootstrapError);
 
 app.on("before-quit", (event) => {
   if (!isShuttingDown) {
@@ -127,7 +130,8 @@ async function ensureFrontendDevServer() {
     return;
   }
 
-  frontendProcess = spawn(resolveNpmCommand(), ["run", "frontend:dev"], {
+  const frontendLaunch = resolveNpmScriptLaunch(["run", "frontend:dev"]);
+  frontendProcess = spawn(frontendLaunch.command, frontendLaunch.args, {
     cwd: APP_ROOT,
     stdio: "inherit",
     detached: process.platform !== "win32"
@@ -413,6 +417,16 @@ function resolveNpmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
+function resolveNpmScriptLaunch(args) {
+  if (process.platform !== "win32") {
+    return { command: "npm", args };
+  }
+
+  // Windows 下直接 spawn npm.cmd 在部分 Node/Electron 组合里会触发 EINVAL。
+  // 通过 cmd.exe 启动 npm 脚本，保持和用户双击 bat 的执行环境一致。
+  return { command: "cmd.exe", args: ["/d", "/s", "/c", "npm", ...args] };
+}
+
 function sanitizeFileName(fileName) {
   return String(fileName).replace(/[\\/:*?"<>|]+/g, "-");
 }
@@ -428,6 +442,13 @@ function formatExitMessage(prefix, code, signal) {
 }
 
 function startParentWatchdog() {
+  if (process.platform === "win32") {
+    return;
+  }
+
+    // Windows 通过 npm/electron.cmd 启动时，父进程可能只是短生命周期包装器；
+    // 继续监听会误判父进程退出，导致桌面窗口刚启动就被主动关闭。
+    return;
   if (parentPid <= 1) {
     return;
   }
@@ -445,6 +466,19 @@ function startParentWatchdog() {
 
 function handleBootstrapError(error) {
   const message = error instanceof Error ? error.message : String(error);
+  writeStartupLog(error);
+  console.error(error);
   dialog.showErrorBox("Electron 启动失败", message);
   void shutdownAndExit(1);
+}
+
+function writeStartupLog(error) {
+  try {
+    fs.mkdirSync(path.dirname(STARTUP_LOG_PATH), { recursive: true });
+    const detail = error instanceof Error ? (error.stack || error.message) : String(error);
+    // Windows double-click startup can close the console before the error is visible.
+    fs.appendFileSync(STARTUP_LOG_PATH, `[${new Date().toISOString()}]\n${detail}\n\n`, "utf8");
+  } catch {
+    // Logging must not introduce a second startup failure.
+  }
 }

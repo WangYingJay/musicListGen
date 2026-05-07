@@ -1,17 +1,18 @@
 import { Activity, Images, ListChecks, ScrollText, Settings, Sparkles, Wand2 } from "lucide-react";
 
-import type { WorkspaceMode } from "../../types";
 import brandLogo from "../../../../assets/logo-source.png";
 
+type TopBarMode = "text" | "edit" | "gallery" | "logs" | "settings";
+
 interface TopBarProps {
-  mode: WorkspaceMode;
-  onModeChange: (mode: WorkspaceMode) => void;
+  mode: TopBarMode;
+  onModeChange: (mode: TopBarMode) => void;
   galleryCount: number;
   queueCount: number;
   backendStatus: "online" | "starting" | "offline";
 }
 
-const navItems: Array<{ id: WorkspaceMode; label: string; icon: typeof Sparkles }> = [
+const navItems: Array<{ id: TopBarMode; label: string; icon: typeof Sparkles }> = [
   { id: "text", label: "歌单生成", icon: Sparkles },
   { id: "edit", label: "图生图", icon: Wand2 },
   { id: "gallery", label: "画廊", icon: Images },

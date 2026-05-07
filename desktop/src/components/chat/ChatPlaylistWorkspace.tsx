@@ -51,6 +51,7 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
   const mustHave = usePlaylistDraftStore((state) => state.mustHave);
   const avoid = usePlaylistDraftStore((state) => state.avoid);
   const temperature = usePlaylistDraftStore((state) => state.temperature);
+  const promptPresetId = usePlaylistDraftStore((state) => state.promptPresetId);
   const setPromptPresetId = usePlaylistDraftStore((state) => state.setPromptPresetId);
   const setVisualPrompt = usePlaylistDraftStore((state) => state.setVisualPrompt);
   const setArtistName = usePlaylistDraftStore((state) => state.setArtistName);
@@ -191,6 +192,10 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
     }
   }, [selectedPlaylistTask]);
 
+  function updateActivePanel(panel: ComposerPanel) {
+    setActivePanel(panel);
+  }
+
   function buildCurrentPrompt() {
     return buildPlaylistPrompt({
       visualPrompt,
@@ -212,6 +217,25 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
     setVisualPrompt(preset.text);
     setActivePanel(null);
     appendOperationLog({ source: "创作台", message: `已切换灵感模板：${preset.label}` });
+  }
+
+  function refreshPromptTemplate() {
+    const nextPreset = getNextVisualPromptPreset(promptPresetId);
+    if (!nextPreset) {
+      return;
+    }
+    setPromptPresetId(nextPreset.id);
+    setVisualPrompt(nextPreset.text);
+    setActivePanel(null);
+    appendOperationLog({
+      source: "创作台",
+      message: `已刷新提示词模板：${nextPreset.label}`
+    });
+    showToast({
+      tone: "info",
+      title: "已刷新提示词模板",
+      description: nextPreset.label
+    });
   }
 
   function resetForm(shouldNotify = true) {
@@ -287,8 +311,14 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
   }
 
   function addImages(files: FileList | File[], bucket: ComposerUploadBucket) {
-    const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    const images = Array.from(files).filter(isImageFile);
     if (!images.length) {
+      appendOperationLog({
+        source: "上传",
+        level: "warn",
+        message: "图片上传未识别到可用文件",
+        detail: { bucket, receivedCount: Array.from(files).length }
+      });
       showToast({
         tone: "warn",
         title: "没有检测到可用图片素材"
@@ -302,13 +332,34 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
       return { id: `${file.name}-${file.size}-${createId()}`, file, previewUrl };
     });
 
+    updateActivePanel("assets");
     if (bucket === "avatarImages") {
       avatarImages.forEach((asset) => URL.revokeObjectURL(asset.previewUrl));
       setAvatarImages(assets.slice(0, 1));
+      appendOperationLog({
+        source: "上传",
+        message: "头像已上传",
+        detail: buildUploadLogDetail(assets.slice(0, 1))
+      });
+      showToast({
+        tone: "success",
+        title: "头像已上传",
+        description: assets[0]?.file.name
+      });
     } else if (bucket === "referenceImages") {
       setReferenceImages((previous) => [...previous, ...assets]);
+      appendOperationLog({
+        source: "上传",
+        message: "参考图已上传",
+        detail: buildUploadLogDetail(assets)
+      });
     } else {
       setMaterialImages((previous) => [...previous, ...assets]);
+      appendOperationLog({
+        source: "上传",
+        message: "素材图已上传",
+        detail: buildUploadLogDetail(assets)
+      });
     }
   }
 
@@ -324,6 +375,12 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
       const target = items.find((item) => item.id === id);
       if (target) {
         URL.revokeObjectURL(target.previewUrl);
+        appendOperationLog({
+          source: "上传",
+          level: "warn",
+          message: `已移除${getUploadBucketLabel(bucket)}`,
+          detail: { name: target.file.name, size: target.file.size, type: target.file.type }
+        });
       }
       return items.filter((item) => item.id !== id);
     };
@@ -461,7 +518,7 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
             materialItems={materialImages.map(toUploadChip)}
             isSubmitting={isSubmitting}
             isBusy={composerHasBusyTask}
-            onPanelChange={setActivePanel}
+            onPanelChange={updateActivePanel}
             onVisualPromptChange={setVisualPrompt}
             onSongListChange={setSongList}
             onArtistNameChange={setArtistName}
@@ -469,13 +526,14 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
             onAvoidChange={setAvoid}
             onTemperatureChange={setTemperature}
             onParamsChange={onParamsChange}
-            onAddImages={addImages}
+            onAddImages={(bucket, files) => addImages(files, bucket)}
             onRemoveAsset={removeAsset}
             onCopyPromptDraft={copyPromptDraft}
+            onRefreshPromptTemplate={refreshPromptTemplate}
             onReset={() => resetForm(true)}
             onSubmit={() => {
               if (!canGenerate) {
-                setActivePanel(cleanedSongList ? null : "songs");
+                updateActivePanel(cleanedSongList ? null : "songs");
               }
               void submitPlaylist();
             }}
@@ -488,7 +546,7 @@ export function ChatPlaylistWorkspace({ params, onParamsChange, resetSignal = 0 
             galleryItems={recentGalleryCards}
             onSelectPreset={applyPreset}
             onReuseGalleryItem={reuseTask}
-            onOpenUploads={() => setActivePanel("assets")}
+            onOpenUploads={() => updateActivePanel("assets")}
           />
         ) : null}
       </div>
@@ -500,8 +558,45 @@ function toUploadChip(item: UploadAsset) {
   return {
     id: item.id,
     name: item.file.name,
+    size: item.file.size,
+    type: item.file.type,
     previewUrl: item.previewUrl
   };
+}
+
+function getNextVisualPromptPreset(currentPresetId: string): (typeof visualPrompts)[number] | null {
+  if (visualPrompts.length === 0) {
+    return null;
+  }
+  const currentIndex = visualPrompts.findIndex((item) => item.id === currentPresetId);
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % visualPrompts.length : 0;
+  return visualPrompts[nextIndex] || visualPrompts[0] || null;
+}
+
+function buildUploadLogDetail(items: UploadAsset[]) {
+  return items.map((item) => ({
+    name: item.file.name,
+    size: item.file.size,
+    type: item.file.type
+  }));
+}
+
+function getUploadBucketLabel(bucket: ComposerUploadBucket): string {
+  if (bucket === "avatarImages") {
+    return "头像";
+  }
+  if (bucket === "referenceImages") {
+    return "参考图";
+  }
+  return "素材图";
+}
+
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) {
+    return true;
+  }
+  // Electron/Windows 下部分本地图片 MIME 可能为空，按常见扩展名兜底识别。
+  return /\.(png|jpe?g|webp|gif|bmp|heic|heif|tiff?)$/i.test(file.name);
 }
 
 function createId(): string {

@@ -1,4 +1,4 @@
-import { Bot, Copy, ImagePlus, ListMusic, RefreshCw, SlidersHorizontal, Sparkles, UserRound, X } from "lucide-react";
+import { Bot, Copy, ImagePlus, ListMusic, RefreshCw, RotateCcw, SlidersHorizontal, Sparkles, UserRound, X } from "lucide-react";
 import { type ChangeEvent, useId, useMemo } from "react";
 
 import { SelectMenu } from "../common/SelectMenu";
@@ -10,6 +10,8 @@ export type ComposerUploadBucket = "avatarImages" | "referenceImages" | "materia
 interface UploadChip {
   id: string;
   name: string;
+  size: number;
+  type: string;
   previewUrl: string;
 }
 
@@ -39,6 +41,7 @@ interface ComposerBarProps {
   onAddImages: (bucket: ComposerUploadBucket, files: FileList | File[]) => void;
   onRemoveAsset: (bucket: ComposerUploadBucket, id: string) => void;
   onCopyPromptDraft: () => void;
+  onRefreshPromptTemplate: () => void;
   onReset: () => void;
   onSubmit: () => void;
 }
@@ -79,6 +82,7 @@ export function ComposerBar({
   onAddImages,
   onRemoveAsset,
   onCopyPromptDraft,
+  onRefreshPromptTemplate,
   onReset,
   onSubmit
 }: ComposerBarProps) {
@@ -86,10 +90,10 @@ export function ComposerBar({
   const modelOptions = models.length > 0 ? models : fallbackModels;
   const activeModel = useMemo(() => modelOptions.find((model) => model.id === params.model) || modelOptions[0], [modelOptions, params.model]);
   const allUploads = [
-    ...avatarItems.map((item) => ({ ...item, bucket: "avatarImages" as const, label: "头像" })),
     ...referenceItems.map((item) => ({ ...item, bucket: "referenceImages" as const, label: "参考图" })),
     ...materialItems.map((item) => ({ ...item, bucket: "materialImages" as const, label: "素材图" }))
   ];
+  const uploadCount = avatarItems.length + referenceItems.length + materialItems.length;
   const disabled = isBusy || visualPrompt.trim().length === 0;
 
   return (
@@ -100,8 +104,11 @@ export function ComposerBar({
             {allUploads.map((item) => (
               <span key={item.id} className="composer-upload-chip">
                 <img src={item.previewUrl} alt={item.name} />
-                <i>{item.label}</i>
-                <strong>{item.name}</strong>
+                <span className="composer-upload-chip-copy">
+                  <i>{item.label}</i>
+                  <strong>{item.name}</strong>
+                  <small>{formatFileSize(item.size)}</small>
+                </span>
                 <button type="button" onClick={() => onRemoveAsset(item.bucket, item.id)} aria-label={`移除${item.name}`}>
                   <X size={12} />
                 </button>
@@ -127,6 +134,7 @@ export function ComposerBar({
             >
               <ImagePlus size={15} />
               <span>图片</span>
+              {uploadCount > 0 ? <i className="composer-tool-count">{uploadCount}</i> : null}
             </button>
             <button
               type="button"
@@ -155,11 +163,15 @@ export function ComposerBar({
           </div>
 
           <div className="chat-composer-toolbar-right">
+            <button type="button" className="composer-tool-button" aria-label="刷新提示词模板" title="刷新提示词模板" onClick={onRefreshPromptTemplate}>
+              <RefreshCw size={15} />
+              <span>刷新模板</span>
+            </button>
             <button type="button" className="composer-icon-button" aria-label="复制提示词草稿" onClick={onCopyPromptDraft}>
               <Copy size={15} />
             </button>
             <button type="button" className="composer-icon-button" aria-label="重置当前表单" onClick={onReset}>
-              <RefreshCw size={15} />
+              <RotateCcw size={15} />
             </button>
             <span className="composer-mode-pill">歌单生成</span>
             <button type="button" className="chat-submit-button" disabled={disabled} onClick={onSubmit}>
@@ -207,7 +219,10 @@ export function ComposerBar({
                   title="头像"
                   hint="更适合放人物或艺人形象参考"
                   items={avatarItems}
+                  uploadedLabel="已上传头像"
+                  addLabel={avatarItems.length > 0 ? "更换头像" : "添加头像"}
                   onAdd={(files) => onAddImages("avatarImages", files)}
+                  onRemove={(id) => onRemoveAsset("avatarImages", id)}
                 />
                 <UploadBucketPanel
                   id={`${idPrefix}-reference`}
@@ -215,6 +230,7 @@ export function ComposerBar({
                   hint="用于借鉴构图、色彩与氛围"
                   items={referenceItems}
                   onAdd={(files) => onAddImages("referenceImages", files)}
+                  onRemove={(id) => onRemoveAsset("referenceImages", id)}
                 />
                 <UploadBucketPanel
                   id={`${idPrefix}-material`}
@@ -222,6 +238,7 @@ export function ComposerBar({
                   hint="用于把主体、物件和场景融进画面"
                   items={materialItems}
                   onAdd={(files) => onAddImages("materialImages", files)}
+                  onRemove={(id) => onRemoveAsset("materialImages", id)}
                 />
               </div>
             ) : null}
@@ -284,10 +301,15 @@ interface UploadBucketPanelProps {
   title: string;
   hint: string;
   items: UploadChip[];
+  uploadedLabel?: string;
+  addLabel?: string;
   onAdd: (files: FileList | File[]) => void;
+  onRemove: (id: string) => void;
 }
 
-function UploadBucketPanel({ id, title, hint, items, onAdd }: UploadBucketPanelProps) {
+function UploadBucketPanel({ id, title, hint, items, uploadedLabel = "已上传图片", addLabel = "添加图片", onAdd, onRemove }: UploadBucketPanelProps) {
+  const primaryItem = items[0];
+
   return (
     <div className="composer-upload-panel">
       <div className="composer-upload-panel-head">
@@ -295,14 +317,31 @@ function UploadBucketPanel({ id, title, hint, items, onAdd }: UploadBucketPanelP
         <span>{hint}</span>
       </div>
 
+      {primaryItem ? (
+        <div className="composer-upload-confirm-card">
+          <img src={primaryItem.previewUrl} alt={primaryItem.name} />
+          <div>
+            <span>{uploadedLabel}</span>
+            <strong>{primaryItem.name}</strong>
+            <small>
+              {formatFileSize(primaryItem.size)}
+              {primaryItem.type ? ` · ${formatImageType(primaryItem.type)}` : ""}
+            </small>
+          </div>
+          <button type="button" onClick={() => onRemove(primaryItem.id)} aria-label={`移除${primaryItem.name}`}>
+            <X size={13} />
+          </button>
+        </div>
+      ) : null}
+
       <label htmlFor={id} className="composer-upload-drop">
         <ImagePlus size={16} />
-        <span>添加图片</span>
+        <span>{addLabel}</span>
       </label>
       <input
         id={id}
         type="file"
-        accept="image/*"
+        accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.heic,.heif,.tif,.tiff"
         multiple
         hidden
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -317,11 +356,34 @@ function UploadBucketPanel({ id, title, hint, items, onAdd }: UploadBucketPanelP
         {items.map((item) => (
           <span key={item.id} className="composer-upload-preview">
             <img src={item.previewUrl} alt={item.name} />
-            <strong>{item.name}</strong>
+            <span>
+              <strong>{item.name}</strong>
+              <small>
+                {formatFileSize(item.size)}
+                {item.type ? ` · ${formatImageType(item.type)}` : ""}
+              </small>
+            </span>
+            <button type="button" onClick={() => onRemove(item.id)} aria-label={`移除${item.name}`}>
+              <X size={12} />
+            </button>
           </span>
         ))}
         {items.length === 0 ? <p className="composer-upload-empty">还没有添加图片</p> : null}
       </div>
     </div>
   );
+}
+
+function formatFileSize(size: number): string {
+  if (!Number.isFinite(size) || size <= 0) {
+    return "未知大小";
+  }
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatImageType(type: string): string {
+  return type.replace(/^image\//, "").toUpperCase();
 }

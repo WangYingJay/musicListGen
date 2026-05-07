@@ -1,5 +1,5 @@
-import { Clock3, Images, ImageUp, PenSquare, ScrollText, Search, Server, Settings2, Sparkles } from "lucide-react";
-import { useMemo } from "react";
+import { ChevronDown, Clock3, FolderOpen, Images, ImageUp, PenSquare, ScrollText, Search, Server, Settings2, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useConfigStore } from "../../stores/configStore";
 import { useGalleryStore } from "../../stores/galleryStore";
@@ -17,15 +17,19 @@ interface ChatSidebarProps {
   onNewSession: () => void;
 }
 
-const moreEntries: Array<{ id: SidebarView; label: string; icon: typeof Images }> = [
+const settingsMenuEntries: Array<{ id: SidebarView; label: string; icon: typeof Images }> = [
   { id: "gallery", label: "作品库", icon: Images },
   { id: "status", label: "任务状态", icon: Clock3 },
-  { id: "connection", label: "设置", icon: Settings2 },
   { id: "backend", label: "后端状态", icon: Server },
-  { id: "logs", label: "操作日志", icon: ScrollText }
+  { id: "logs", label: "操作日志", icon: ScrollText },
+  { id: "connection", label: "连接与授权", icon: ShieldCheck },
+  { id: "output", label: "默认输出", icon: Sparkles },
+  { id: "creative", label: "创作偏好", icon: FolderOpen },
+  { id: "advanced", label: "高级采样", icon: SlidersHorizontal }
 ];
 
 export function ChatSidebar({ creationMode, activeView, onCreationModeChange, onViewChange, onNewSession }: ChatSidebarProps) {
+  const [settingsOpen, setSettingsOpen] = useState(() => isSettingsMenuView(activeView));
   const tasksById = useTaskStore((state) => state.tasks);
   const selectedTaskId = useTaskStore((state) => state.selectedTaskId);
   const selectTask = useTaskStore((state) => state.selectTask);
@@ -55,6 +59,13 @@ export function ChatSidebar({ creationMode, activeView, onCreationModeChange, on
       }).length,
     [creationMode, galleryItems, tasksById]
   );
+  const hasActiveSettingsView = isSettingsMenuView(activeView);
+
+  useEffect(() => {
+    if (hasActiveSettingsView) {
+      setSettingsOpen(true);
+    }
+  }, [hasActiveSettingsView]);
 
   return (
     <aside className="workspace-sidebar chat-sidebar">
@@ -111,7 +122,7 @@ export function ChatSidebar({ creationMode, activeView, onCreationModeChange, on
           ))}
         </div>
 
-        <section className="chat-sidebar-section">
+        <section className="chat-sidebar-section chat-sidebar-history">
           <div className="chat-sidebar-section-head">
             <span>最近</span>
             <strong>{recentSessions.length}</strong>
@@ -146,26 +157,39 @@ export function ChatSidebar({ creationMode, activeView, onCreationModeChange, on
 
         <section className="chat-sidebar-section">
           <div className="chat-sidebar-section-head">
-            <span>更多</span>
+            <span>设置</span>
           </div>
-          <div className="chat-sidebar-more-list">
-            {moreEntries.map((entry) => {
-              const Icon = entry.icon;
-              const active = entry.id === "connection"
-                ? activeView === "connection" || activeView === "output" || activeView === "creative" || activeView === "advanced"
-                : activeView === entry.id;
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  className={active ? "chat-more-button active" : "chat-more-button"}
-                  onClick={() => onViewChange(entry.id)}
-                >
-                  <Icon size={15} />
-                  <span>{entry.label}</span>
-                </button>
-              );
-            })}
+          <div className={settingsOpen ? "chat-settings-group open" : "chat-settings-group"}>
+            <button
+              type="button"
+              className={hasActiveSettingsView ? "chat-more-button chat-settings-toggle active" : "chat-more-button chat-settings-toggle"}
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((value) => !value)}
+            >
+              <span className="chat-settings-toggle-main">
+                <Settings2 size={15} />
+                <span>设置</span>
+              </span>
+              <ChevronDown className={settingsOpen ? "chat-settings-chevron open" : "chat-settings-chevron"} size={15} />
+            </button>
+            {settingsOpen ? (
+              <div className="chat-settings-submenu">
+                {settingsMenuEntries.map((entry) => {
+                  const Icon = entry.icon;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className={activeView === entry.id ? "chat-settings-child active" : "chat-settings-child"}
+                      onClick={() => onViewChange(entry.id)}
+                    >
+                      <Icon size={14} />
+                      <span>{entry.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -201,4 +225,8 @@ function formatConversationTime(value: string): string {
   } catch {
     return value;
   }
+}
+
+function isSettingsMenuView(view: SidebarView | "workspace"): view is SidebarView {
+  return view === "gallery" || view === "status" || view === "backend" || view === "logs" || view === "connection" || view === "output" || view === "creative" || view === "advanced";
 }

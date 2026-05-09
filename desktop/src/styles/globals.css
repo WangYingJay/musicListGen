@@ -1759,6 +1759,7 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
   gap: 10px;
   width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
 }
 
 .toast-card {
@@ -1772,6 +1773,7 @@ input[type="range"]::-moz-range-thumb {
   background: rgba(255, 253, 249, 0.94);
   box-shadow: 0 18px 40px rgba(40, 29, 16, 0.14);
   backdrop-filter: blur(14px);
+  pointer-events: auto;
 }
 
 .toast-card.success {
@@ -5310,11 +5312,12 @@ body::before {
 .toast-viewport {
   position: fixed;
   right: 24px;
-  bottom: 24px;
+  top: 24px;
   z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  pointer-events: none;
 }
 
 .toast-card {
@@ -5330,6 +5333,7 @@ body::before {
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--shadow-panel);
   backdrop-filter: blur(16px);
+  pointer-events: auto;
 }
 
 .toast-copy strong {
@@ -5414,7 +5418,7 @@ body::before {
   .toast-viewport {
     left: 16px;
     right: 16px;
-    bottom: 16px;
+    top: 16px;
   }
 
   .toast-card {

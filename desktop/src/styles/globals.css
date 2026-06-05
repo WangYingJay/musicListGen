@@ -3510,7 +3510,7 @@ body::before {
 
 .chat-sidebar-mode-group {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -4614,6 +4614,67 @@ body::before {
   padding: 20px 22px;
 }
 
+.text-image-workspace-shell .prompt-workspace {
+  padding: 20px 22px;
+}
+
+.text-image-grid {
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.72fr);
+  align-items: start;
+}
+
+.text-image-control-card {
+  display: grid;
+  gap: 18px;
+}
+
+.text-image-result-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.text-image-result-stage {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 20px;
+  background: var(--bg-surface-soft);
+}
+
+.text-image-result-stage.has-image {
+  background: #0f172a;
+}
+
+.text-image-result-stage img {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  object-fit: contain;
+}
+
+.text-image-result-stage div {
+  display: grid;
+  place-items: center;
+  gap: 9px;
+  max-width: 320px;
+  padding: 28px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.text-image-result-stage strong {
+  color: var(--text-primary);
+  font-size: 20px;
+}
+
+.text-image-result-copy {
+  display: grid;
+  gap: 14px;
+}
+
 .edit-workspace-result {
   margin-top: 18px;
 }
@@ -5380,6 +5441,7 @@ body::before {
 
 @media (max-width: 1100px) {
   .view-grid.two-columns,
+  .text-image-grid,
   .gallery-view-grid,
   .gallery-redesign-grid,
   .settings-grid,

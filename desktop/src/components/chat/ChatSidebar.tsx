@@ -104,7 +104,7 @@ export function ChatSidebar({ creationMode, activeView, onCreationModeChange, on
         </button>
 
         <div className="chat-sidebar-mode-group" role="tablist" aria-label="创作模式">
-          {(["text", "edit"] as const).map((mode) => (
+          {(["text", "textToImage", "edit"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -116,7 +116,7 @@ export function ChatSidebar({ creationMode, activeView, onCreationModeChange, on
                 onViewChange("workspace");
               }}
             >
-              {mode === "text" ? <Sparkles size={14} /> : <ImageUp size={14} />}
+              {mode === "text" ? <ScrollText size={14} /> : mode === "textToImage" ? <Sparkles size={14} /> : <ImageUp size={14} />}
               <span>{getCreationModeLabel(mode)}</span>
             </button>
           ))}
@@ -129,11 +129,12 @@ export function ChatSidebar({ creationMode, activeView, onCreationModeChange, on
           </div>
           <div className="chat-sidebar-session-list">
             {recentSessions.map((task) => {
-              const summary = getTaskCreationMode(task) === "text" ? parsePlaylistPromptSummary(task.prompt) : null;
+              const taskMode = getTaskCreationMode(task);
+              const summary = taskMode === "text" ? parsePlaylistPromptSummary(task.prompt) : null;
               const title = summary?.title || task.prompt.slice(0, 22) || "未命名任务";
               const secondary = summary
                 ? `${summary.songCount} 首歌 · ${formatConversationTime(task.created_at)}`
-                : `${task.status === "succeeded" ? "图生图完成" : task.message || "等待处理中"} · ${formatConversationTime(task.created_at)}`;
+                : `${task.status === "succeeded" ? `${getCreationModeLabel(taskMode)}完成` : task.message || "等待处理中"} · ${formatConversationTime(task.created_at)}`;
 
               return (
                 <button

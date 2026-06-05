@@ -7,12 +7,14 @@ from pydantic import BaseModel, Field
 
 TaskStatus = Literal["pending", "running", "succeeded", "failed", "cancelled"]
 TaskKind = Literal["generations", "edits"]
+ImageWorkflow = Literal["playlist", "text-to-image", "image-edit"]
 
 
 class GenerateImageRequest(BaseModel):
     model: str = "gpt-image-2"
     prompt: str
     negative_prompt: Optional[str] = None
+    workflow: Optional[ImageWorkflow] = None
     size: str = "1024x1024"
     n: int = Field(default=1, ge=1, le=4)
     quality: Literal["auto", "standard", "high"] = "auto"

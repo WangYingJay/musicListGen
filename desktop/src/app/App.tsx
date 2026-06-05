@@ -11,6 +11,7 @@ import { ToastViewport } from "../components/common/ToastViewport";
 import { OperationLogCenter } from "../components/logs/OperationLogCenter";
 import { PromptPanel } from "../components/prompt/PromptPanel";
 import { ApiConfigPanel } from "../components/settings/ApiConfigPanel";
+import { TextToImageWorkspace } from "../components/textToImage/TextToImageWorkspace";
 import { useBackendLogs } from "../hooks/useBackendLogs";
 import { useTaskPolling } from "../hooks/useTaskPolling";
 import { useConfigStore } from "../stores/configStore";
@@ -191,7 +192,7 @@ export function App() {
     }
     setIsSubmitting(true);
     try {
-      const input = { ...params, prompt, negative_prompt: negativePrompt || undefined };
+      const input = { ...params, prompt, negative_prompt: negativePrompt || undefined, workflow: "image-edit" as const };
       const response = await createEdit(input, referenceFile, effectiveApiKey, upstreamApiBase);
       addTaskFromResponse(response, input);
       appendOperationLog({
@@ -270,6 +271,15 @@ export function App() {
             />
           )}
 
+          {activeView === "workspace" && mode === "textToImage" && (
+            <TextToImageWorkspace
+              params={params}
+              onParamsChange={setParams}
+              resetSignal={workspaceResetSignal}
+              onOpenSettings={() => setActiveView("output")}
+            />
+          )}
+
           {activeView === "workspace" && mode === "edit" && (
             <EditWorkspace
               prompt={prompt}
@@ -324,6 +334,7 @@ export function App() {
 
 function renderModeLabel(mode: WorkspaceMode): string {
   if (mode === "text") return "歌单生成";
+  if (mode === "textToImage") return "文字生图";
   return "图生图";
 }
 
@@ -467,6 +478,8 @@ function EditWorkspace({
           prompt={prompt}
           negativePrompt={negativePrompt}
           isSubmitting={isSubmitting}
+          title="参考图重绘提示词"
+          logSource="图生图"
           onPromptChange={onPromptChange}
           onNegativePromptChange={onNegativePromptChange}
           onGenerate={onSubmit}

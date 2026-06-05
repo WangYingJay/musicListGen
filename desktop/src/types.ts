@@ -7,18 +7,20 @@ export interface BackendState {
   message: string;
 }
 
-export type CreationMode = "text" | "edit";
+export type CreationMode = "text" | "textToImage" | "edit";
 export type WorkspaceMode = CreationMode;
 export type SettingsSection = "connection" | "output" | "creative" | "advanced";
 export type SidebarView = "gallery" | "status" | SettingsSection | "backend" | "logs";
 export type TaskStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 export type TaskKind = "generations" | "edits";
 export type OperationLogLevel = "info" | "warn" | "error";
+export type ImageWorkflow = "playlist" | "text-to-image" | "image-edit";
 
 export interface GenerateInput {
   model: string;
   prompt: string;
   negative_prompt?: string;
+  workflow?: ImageWorkflow;
   size: string;
   n: number;
   quality: "auto" | "standard" | "high";

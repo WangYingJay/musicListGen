@@ -235,7 +235,7 @@ def _parse_upstream_response(response: httpx.Response) -> dict[str, Any]:
         except ValueError:
             data = {"message": response.text}
         if isinstance(data, dict):
-            message = data.get("message") or (data.get("error", {}) or {}).get("message")
+            message = _format_upstream_error(data, response.status_code)
         else:
             message = ""
         raise RuntimeError(message or f"上游接口请求失败：{response.status_code}")
@@ -244,9 +244,37 @@ def _parse_upstream_response(response: httpx.Response) -> dict[str, Any]:
         return {"data": [{"b64_json": base64.b64encode(response.content).decode("ascii")}]}
 
     try:
-        return response.json()
+        data = response.json()
     except ValueError:
         raise RuntimeError("上游响应不是可识别的 JSON 或图片")
+
+    if isinstance(data, dict) and data.get("error"):
+        # 有些 OpenAI 兼容中转会用 HTTP 200 包一层业务错误，必须按失败处理，
+        # 否则后续提取图片时只会报“缺少图片数据”，掩盖真正的上游失败原因。
+        raise RuntimeError(_format_upstream_error(data))
+
+    return data
+
+
+def _format_upstream_error(data: dict[str, Any], http_status: int | None = None) -> str:
+    error = data.get("error")
+    if not isinstance(error, dict):
+        message = str(data.get("message") or "上游接口返回错误").strip()
+        return f"{message}（HTTP {http_status}）" if http_status else message
+
+    message = str(error.get("message") or data.get("message") or "上游接口返回错误").strip()
+    extra_parts = []
+    status = http_status or error.get("status") or data.get("status")
+    code = error.get("code") or data.get("code")
+    generation_id = error.get("generation_id") or error.get("generationId") or data.get("generation_id") or data.get("generationId")
+    if status:
+        # HTTP 状态和业务状态都来自中转层，放进页面错误文案便于和上游控制台账单对齐。
+        extra_parts.append(f"HTTP {status}")
+    if code:
+        extra_parts.append(str(code))
+    if generation_id:
+        extra_parts.append(f"generation_id {generation_id}")
+    return f"{message}（{'，'.join(extra_parts)}）" if extra_parts else message
 
 
 async def _extract_first_image(result: dict[str, Any], settings: Settings) -> bytes:

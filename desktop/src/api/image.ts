@@ -34,6 +34,9 @@ export async function createEdit(input: GenerateInput, images: File | File[], ap
   if (input.negative_prompt) {
     form.set("negative_prompt", input.negative_prompt);
   }
+  if (input.workflow) {
+    form.set("workflow", input.workflow);
+  }
   if (typeof input.steps === "number") {
     form.set("steps", String(input.steps));
   }

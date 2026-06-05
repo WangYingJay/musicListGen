@@ -81,6 +81,7 @@ export function buildPlaylistGenerateInput(params: GenerateInput, prompt: string
   return {
     ...params,
     prompt,
+    workflow: "playlist",
     size,
     quality,
     n: 1

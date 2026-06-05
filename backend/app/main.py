@@ -113,6 +113,7 @@ async def create_edit(
     model: str = Form("gpt-image-2"),
     prompt: str = Form(...),
     negative_prompt: Optional[str] = Form(default=None),
+    workflow: Optional[str] = Form(default=None),
     size: str = Form("1024x1024"),
     n: int = Form(1),
     quality: str = Form("auto"),
@@ -136,6 +137,8 @@ async def create_edit(
         "model": model,
         "prompt": prompt,
         "negative_prompt": negative_prompt,
+        # workflow 只用于本地任务归类和历史恢复，上游请求会在 image_service 中白名单清洗。
+        "workflow": workflow,
         "size": size,
         "n": n,
         "quality": quality,

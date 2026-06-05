@@ -59,14 +59,15 @@ export const useTaskStore = create<TaskState>((set) => ({
           activeTaskIds: syncActiveTaskIds(state.activeTaskIds, task.task_id, task.status)
         };
       }
+      const displayMessage = resolveTaskDisplayMessage(task);
       const didStatusChange = current.status !== task.status;
-      const didMessageChange = current.message !== task.message;
+      const didMessageChange = current.message !== displayMessage;
       const imageTask = {
         ...current,
         galleryHidden: Boolean(task.gallery_hidden),
         status: task.status,
         progress: task.progress,
-        message: task.message,
+        message: displayMessage,
         error: task.error,
         result: task.result,
         imageUrl: resolveTaskImageUrl(task),
@@ -154,6 +155,7 @@ function buildImageTask(task: TaskResponse, input: GenerateInput): ImageTask {
   const steps = readNumber(request?.steps) ?? input.steps;
   const cfgScale = readNumber(request?.cfg_scale) ?? input.cfg_scale;
   const seed = readNumber(request?.seed) ?? input.seed;
+  const workflow = readWorkflow(request?.workflow) || input.workflow;
 
   return {
     id: task.id,
@@ -170,13 +172,14 @@ function buildImageTask(task: TaskResponse, input: GenerateInput): ImageTask {
       size,
       n,
       quality,
+      ...(workflow ? { workflow } : {}),
       ...(typeof steps === "number" ? { steps } : {}),
       ...(typeof cfgScale === "number" ? { cfg_scale: cfgScale } : {}),
       ...(typeof seed === "number" ? { seed } : {})
     },
     status: task.status,
     progress: task.progress,
-    message: task.message,
+    message: resolveTaskDisplayMessage(task),
     error: task.error,
     result: task.result,
     imageUrl: resolveTaskImageUrl(task),
@@ -185,6 +188,11 @@ function buildImageTask(task: TaskResponse, input: GenerateInput): ImageTask {
     started_at: task.started_at,
     completed_at: task.completed_at
   };
+}
+
+function resolveTaskDisplayMessage(task: TaskResponse): string {
+  // 页面多数位置读取 task.message；失败时优先透出上游原始错误，避免只看到“图片编辑失败”。
+  return task.status === "failed" && task.error ? task.error : task.message;
 }
 
 function syncActiveTaskIds(activeTaskIds: string[], taskId: string, status: TaskResponse["status"]): string[] {
@@ -209,6 +217,10 @@ function readNumber(value: unknown): number | undefined {
 
 function readQuality(value: unknown): GenerateInput["quality"] | undefined {
   return value === "auto" || value === "standard" || value === "high" ? value : undefined;
+}
+
+function readWorkflow(value: unknown): GenerateInput["workflow"] | undefined {
+  return value === "playlist" || value === "text-to-image" || value === "image-edit" ? value : undefined;
 }
 
 function resolveTaskImageUrl(task: TaskResponse): string | undefined {
